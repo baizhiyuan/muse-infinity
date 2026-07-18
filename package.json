@@ -1,0 +1,10 @@
+{
+  "name": "muse-infinity-impossible-museum",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "check": "node --check app.js && node --check server.mjs && node --check config/assets.js && node --check services/worldLabs.js && node --check lib/audioAnalysis.js && node --check lib/performance.js && node --check lib/memoryWorld.js"
+  }
+}

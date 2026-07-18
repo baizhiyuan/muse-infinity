@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#08060a" />
+    <title>MUSE∞ — The Impossible Museum</title>
+    <meta name="description" content="A living museum beyond time, where every conversation transforms the world." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=Gilda+Display&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="world-environment" aria-hidden="true"></div>
+    <canvas id="world" aria-hidden="true"></canvas>
+    <div class="grain" aria-hidden="true"></div>
+
+    <header class="topbar">
+      <button class="wordmark" data-action="reset" aria-label="Reset experience">MUSE<span>∞</span></button>
+      <div class="chapter"><span id="chapterNumber">00</span><i></i><span id="chapterName">THRESHOLD</span></div>
+      <div class="top-actions">
+        <button class="quiet-button" data-action="toggle-performance" id="performanceLabel" aria-label="Toggle performance mode">AUTO</button>
+        <button class="icon-button" data-action="toggle-audio" aria-label="Toggle sound"><span id="audioIcon">◌</span></button>
+        <button class="quiet-button" data-action="reset">RESET</button>
+      </div>
+    </header>
+
+    <main id="experience" aria-live="polite"></main>
+
+    <aside class="philosophy-meter" id="meter" aria-label="Philosophy state">
+      <div><span>PERCEPTION</span><b id="meterPerception"></b></div>
+      <div><span>EMOTION</span><b id="meterEmotion"></b></div>
+      <div><span>INVENTION</span><b id="meterInvention"></b></div>
+    </aside>
+
+    <footer class="footer">
+      <span>AN AI INTERPRETATION — NOT AUTHENTIC QUOTATION · <b id="worldStatus">LOCAL MEMORY</b></span>
+      <span id="discovery">DISCOVERY 00%</span>
+    </footer>
+
+    <section id="debugPanel" class="debug-panel" hidden aria-label="Development controls"></section>
+
+    <noscript>This experience requires JavaScript.</noscript>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

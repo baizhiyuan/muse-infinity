@@ -1,0 +1,20 @@
+{
+  "threshold": {
+    "id": "threshold",
+    "title": "A Physical Memory",
+    "sourceType": "mock",
+    "worldUrl": "",
+    "assetUrl": "",
+    "thumbnailUrl": "",
+    "fallbackSceneId": "threshold-particles"
+  },
+  "monet": {
+    "id": "monet",
+    "title": "World of Light",
+    "sourceType": "mock",
+    "worldUrl": "",
+    "assetUrl": "",
+    "thumbnailUrl": "",
+    "fallbackSceneId": "monet-particles"
+  }
+}
