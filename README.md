@@ -155,6 +155,18 @@ Key human product decisions retained in the implementation:
 
 Before submission, add the `/feedback` session ID for the task where the majority of core functionality was built.
 
+## OpenAI Build Week judging access
+
+- **Track:** Apps for Your Life
+- **Repository access:** Public under the MIT License so judges can inspect and run the source without an invitation.
+- **Testing path:** Run `npm start`, then open `http://localhost:4173/?demo=true` for the shortest complete path.
+- **Credentials:** None required. The local fallback does not require an API key or private account.
+- **Core Codex Session ID:** `PENDING - replace with the /feedback Session ID before the Devpost submission is finalized.`
+
+### Submission-readiness disclosure
+
+This repository is being published during the submission period as a work in progress. The current visual journey and deterministic fallback are runnable, but GPT-5.6 live orchestration is not yet implemented. Do not describe the cached dialogue as a live model response in the demo or Devpost submission. Before final submission, the project must add the documented GPT-5.6 path, preserve the fallback, record the core `/feedback` Session ID above, and update this disclosure.
+
 ## Next phase
 
 1. Replace cached dialogue with a GPT-5.6 structured-output orchestrator while retaining mock fallback.
@@ -175,4 +187,4 @@ Do not add five complete worlds, seven autonomous agents, accounts, multiplayer,
 
 ## License and attribution
 
-The current prototype contains original source code and no copied third-party assets. Google Fonts are loaded from their public stylesheet and gracefully fall back to local serif/sans-serif fonts. Add every future model, texture, audio file, open-source package, museum record, and generated asset to `THIRD_PARTY_NOTICES.md` before submission.
+The current prototype is released under the [MIT License](LICENSE), contains original source code, and includes no copied third-party assets. Google Fonts are loaded from their public stylesheet and gracefully fall back to local serif/sans-serif fonts. Add every future model, texture, audio file, open-source package, museum record, and generated asset to `THIRD_PARTY_NOTICES.md` before submission.
