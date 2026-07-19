@@ -162,7 +162,10 @@ export const WORLDS = {
     render: "splat",
     worldScale: 1.7, // open worlds tuned like the finale ones (feedback #11): world grand, people human-scale
     metric: { scale: 1.7552, ty: 1.1188 },
-    profile: { spawn: { x: 3.2, z: -17.58 }, groundY: 1.1, bounds: { minX: -6.36, maxX: 23.3, minZ: -41.25, maxZ: 16.21 }, yaw: 0, cameraFar: 400 },
+    // Entry view turned 180 on user request: yaw PI now looks back over the lily water instead
+    // of away from it. Artwork stops and companion slots both derive from spawn+yaw, so the
+    // exhibition and the masters swing round with the view automatically.
+    profile: { spawn: { x: 3.2, z: -17.58 }, groundY: 1.1, bounds: { minX: -6.36, maxX: 23.3, minZ: -41.25, maxZ: 16.21 }, yaw: Math.PI, cameraFar: 400 },
     enclosed: false,
     recommended: false,
   },
