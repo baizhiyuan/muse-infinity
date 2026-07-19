@@ -196,9 +196,12 @@ export const listWorlds = () => WORLD_ORDER.map((k) => WORLDS[k]).filter(Boolean
 // Every target is `enclosed: true`: an open world would strand the visitor on a plain.
 
 export const PHILOSOPHY_WORLDS = {
-  "emotion+perception": "elegant-floral-palace-interior",     // The Garden of Living Light
-  "invention+perception": "bright-gallery-hall",              // The Museum of Multiple Realities (generated gallery)
-  "emotion+invention": "van-gogh-inspired-gallery-interior",  // The Infinite Interior
+  // All three endings land in the benchmark-grade generated gallery (the one clear, correctly
+  // positioned world). The philosophy still personalises the visit via a distinct Art Institute
+  // collection + manifesto per ending — only the (best) environment is shared.
+  "emotion+perception": "bright-gallery-hall",     // The Garden of Living Light (Monet)
+  "invention+perception": "bright-gallery-hall",   // The Museum of Multiple Realities (Kandinsky)
+  "emotion+invention": "bright-gallery-hall",       // The Infinite Interior (Van Gogh)
 };
 
 // Art Institute query per ending. These MUST be artist names: the open-access endpoint
