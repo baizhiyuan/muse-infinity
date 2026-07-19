@@ -9,7 +9,8 @@ import { museumArtworks, salonParticipants } from "./config/museumAssets.js";
 import { Museum3D } from "./lib/museum3d.js";
 import { loadOpenAccessArtworks } from "./services/museumCollections.js";
 import { artworkChoices, AXIS_CHAMPIONS, DIALOGUE_DISCLAIMER, voiceFor, formatLine } from "./config/companionDialogues.js";
-import { getWorld, listWorlds, DEFAULT_WORLD_KEY, PHILOSOPHY_WORLDS, PHILOSOPHY_QUERIES } from "./config/worlds.js";
+import { getWorld, PHILOSOPHY_QUERIES } from "./config/worlds.js";
+import { exhibitionScenes } from "./config/exhibitionScenes.js";
 
 const canvas = document.querySelector("#world");
 const ctx = canvas.getContext("2d", { alpha: false });
@@ -77,15 +78,15 @@ const performanceController = new PerformanceController({
 });
 
 const STAGES = [
-  "threshold", "museum_void", "world_selection", "companion_selection", "world_exploration",
+  "threshold", "life_question", "companion_selection", "ai_curation", "world_exploration",
   "summoning", "roundtable", "decision", "world_transformation", "manifesto"
 ];
 
 const stageMeta = {
   threshold: ["00", "THRESHOLD", "#c9aa72"],
-  museum_void: ["01", "BETWEEN WORLDS", "#9e87aa"],
-  world_selection: ["02", "BORROWED EYES", "#7caaa9"],
-  companion_selection: ["03", "CHOOSE YOUR COMPANY", "#c999a9"],
+  life_question: ["01", "YOUR QUESTION", "#9e87aa"],
+  companion_selection: ["02", "CHOOSE YOUR COMPANY", "#c999a9"],
+  ai_curation: ["03", "AI THEME CURATION", "#7caaa9"],
   world_exploration: ["04", "THE LIVING GALLERY", "#91bab1"],
   summoning: ["05", "THE SUMMONING", "#b59bc0"],
   roundtable: ["06", "SALON OUTSIDE TIME", "#c9aa72"],
@@ -141,6 +142,8 @@ const state = {
   stage: "threshold",
   selectedPortal: null,
   activeSpeaker: null,
+  currentQuestion: null,
+  exhibitionSceneIndex: 0,
   session: emptySession(),
   roundtable: emptyRoundtable(),
   philosophy: { perception: 0, emotion: 0, invention: 0 },
@@ -251,9 +254,9 @@ function updateMeter() {
 function render() {
   const views = {
     threshold: thresholdView,
-    museum_void: museumVoidView,
-    world_selection: worldSelectionView,
+    life_question: lifeQuestionView,
     companion_selection: companionSelectionView,
+    ai_curation: aiCurationView,
     world_exploration: worldExplorationView,
     summoning: summoningView,
     roundtable: roundtableView,
@@ -277,49 +280,95 @@ function thresholdView() {
   </section>`;
 }
 
-function museumVoidView() {
-  return `<section class="scene void-scene">
-    <div class="scene-number">01</div>
-    <div class="void-copy"><p class="eyebrow">GEOGRAPHY HAS COLLAPSED</p>
-    <h1>The Museum<br>Between Worlds</h1>
-    <p class="lede">Parisian light crosses a Mexican courtyard. Classical stone dissolves into an infinite interior. History is no longer a line—it is a place you can enter.</p>
-    <div class="action-row"><button class="primary-action" data-action="discover-worlds">FOLLOW THE LIGHT <span>→</span></button></div></div>
+// The visitor's life question is the curatorial thread the whole journey hangs from (ported from
+// the codex branch's opening screen). Suggestions fill the field; submit stores the question and
+// moves on to choose companions.
+const lifeQuestions = [
+  "What makes a life meaningful?",
+  "How do I live with uncertainty?",
+  "What should I keep, and what should I let go?"
+];
+
+function lifeQuestionView() {
+  return `<section class="scene question-stage">
+    <div class="question-stage-copy">
+      <p class="eyebrow">01 / BEGIN WITH YOUR LIFE</p>
+      <h2>What question are you carrying?</h2>
+      <p class="lede">There is no correct question. The museum will use it as the curatorial thread connecting every artwork, companion and space.</p>
+    </div>
+    <form id="lifeQuestionForm" class="life-question-form">
+      <label for="lifeQuestion">YOUR QUESTION</label>
+      <textarea id="lifeQuestion" maxlength="240" placeholder="What makes a life meaningful?" required>${escapeHtml(state.currentQuestion || "")}</textarea>
+      <div class="question-suggestions">${lifeQuestions.map(question => `<button type="button" data-life-question="${escapeHtml(question)}">${escapeHtml(question)}</button>`).join("")}</div>
+      <button class="primary-action" type="submit">CHOOSE WHO WALKS WITH ME <span>→</span></button>
+    </form>
   </section>`;
 }
 
-const WORLD_TINTS = ["#c6a54a", "#c69f4e", "#b98cc0", "#7fb069", "#79b7b0", "#d98c7a", "#8fa9c9", "#c89ba1", "#6db3c9"];
+// A lightweight "AI curation" reading of the question — a themed title and three chapter names —
+// with a preview of three scenes from the exhibition spine (ported from the codex branch; the
+// route cards read our exhibitionScenes thumbnails).
+function curationData() {
+  const question = (state.currentQuestion || "").toLowerCase();
+  if (/meaning|purpose|worth/.test(question)) return ["The Architecture of a Meaningful Life", ["Attention", "Belonging", "What Remains"]];
+  if (/uncertain|unknown|future|fear/.test(question)) return ["The Beauty of Not Knowing", ["Thresholds", "Changing Light", "Trusting the Unfinished"]];
+  if (/keep|let go|loss|leave/.test(question)) return ["What Memory Chooses to Keep", ["Attachment", "Transformation", "Release"]];
+  if (/love|relationship|alone|belong/.test(question)) return ["The Distance Between Two People", ["Recognition", "Intimacy", "Freedom"]];
+  return ["A Museum Built Around Your Question", ["How You See", "What You Feel", "What You Can Imagine"]];
+}
 
-function worldSelectionView() {
-  // Every Marble world we have (config/worlds.js) is an independent, selectable exhibition
-  // space — walkable enclosed rooms first, open worlds after.
-  const worlds = listWorlds();
-  return `<section class="scene">
-    <p class="eyebrow">02 / CHOOSE A WORLD</p><h2>Which world will hold your exhibition?</h2>
-    <div class="world-grid">${worlds.map((w, i) => `<button class="world-node${w.recommended ? " recommended" : ""}" style="--node-color:${WORLD_TINTS[i % WORLD_TINTS.length]}${w.thumb ? `;--artwork:url('${w.thumb}')` : ""}" data-world="${w.key}"><small>${w.enclosed ? "WALKABLE ROOM" : "OPEN WORLD"}${w.recommended ? " · RECOMMENDED" : ""}</small><b>${w.displayName}</b><em>${w.blurb}</em></button>`).join("")}</div>
+function aiCurationView() {
+  const [title, chapters] = curationData();
+  const companions = selectedCompanionRecords();
+  const routeScenes = [exhibitionScenes[1], exhibitionScenes[3], exhibitionScenes[5]];
+  return `<section class="scene curation-stage">
+    <div class="curation-summary">
+      <p class="eyebrow">03 / AI THEME CURATION COMPLETE</p>
+      <h2>${escapeHtml(title)}</h2>
+      <blockquote>“${escapeHtml(state.currentQuestion || "")}”</blockquote>
+      <div class="curation-companions">${companions.map(character => `<span><img src="${character.portrait}" alt=""/>${character.name}</span>`).join("")}</div>
+    </div>
+    <div class="curation-route" aria-label="Curated exhibition route">
+      ${chapters.map((chapter, index) => {
+        const scene = routeScenes[index];
+        return `<article><small>CHAPTER 0${index + 1}</small><img src="${scene.thumbnail}" alt="${escapeHtml(scene.title)}"/><div><b>${escapeHtml(chapter)}</b><span>${escapeHtml(scene.title)} · ${escapeHtml(scene.artist)}</span></div></article>`;
+      }).join("")}
+      <div class="curation-ready"><span>CURATORIAL SPINE READY</span><button class="primary-action" data-action="enter-gallery">ENTER THE EXHIBITION <span>→</span></button></div>
+    </div>
   </section>`;
 }
 
 function companionSelectionView() {
   const selectable = characters.filter(character => character.portrait);
   return `<section class="scene companion-selection">
-    <div class="companion-intro"><p class="eyebrow">03 / INVITE UP TO THREE MINDS</p><h2>Who will walk the museum with you?</h2><p class="lede">Choose real historical portraits with public-domain sources. In the gallery, each becomes an interpretive AI companion—not a clone or authentic quotation.</p></div>
+    <div class="companion-intro"><p class="eyebrow">02 / INVITE UP TO THREE MINDS</p><h2>Who will walk the museum with you?</h2><p class="lede">Choose real historical portraits with public-domain sources. In the gallery, each becomes an interpretive AI companion—not a clone or authentic quotation.</p></div>
     <div class="companion-grid">${selectable.map(character => `<button class="companion-card ${state.selectedCompanions.has(character.id) ? "selected" : ""}" data-companion="${character.id}" style="--portrait:url('${character.portrait}')"><span class="companion-check">${state.selectedCompanions.has(character.id) ? "✓" : "+"}</span><small>INVITE</small><b>${character.fullName}</b><em>AI interpretation · public-domain portrait</em>${character.turnaround ? `<span class="model-readiness">4-VIEW 3D INPUT READY</span>` : ""}</button>`).join("")}</div>
-    <div class="companion-footer"><span id="companionCount">${state.selectedCompanions.size} / 3 SELECTED</span><button class="primary-action" data-action="enter-gallery" ${state.selectedCompanions.size ? "" : "disabled"}>ENTER TOGETHER <span>→</span></button></div>
+    <div class="companion-footer"><span id="companionCount">${state.selectedCompanions.size} / 3 SELECTED</span><button class="primary-action" data-action="curate-exhibition" ${state.selectedCompanions.size ? "" : "disabled"}>LET AI CURATE <span>→</span></button></div>
   </section>`;
 }
 
 function worldExplorationView() {
   const companions = selectedCompanionRecords();
   const focused = state.focusedArtwork || state.galleryArtworks[0];
-  // A Marble world always loads here (resolveSelectedWorld() falls back to the default), and the
-  // full-res splat streams for seconds — so cover the viewport with a dark veil until the world
-  // is framed. onWorldReady (or the fallback / 60s safety timeout) dismisses it, avoiding the
-  // old jarring flash of the procedural box gallery before the real world swaps in.
-  const entering = resolveSelectedWorld();
+  const index = state.exhibitionSceneIndex;
+  const scene = exhibitionScenes[index] || exhibitionScenes[0];
+  const total = exhibitionScenes.length;
+  const pad = (value) => String(value).padStart(2, "0");
+  // A Marble world always loads here (resolveSelectedWorld() resolves the current scene's world),
+  // and the full-res splat streams for seconds — so cover the viewport with a dark veil until the
+  // world is framed. onWorldReady (or the fallback / 60s safety timeout) dismisses it, avoiding the
+  // old jarring flash of the procedural box gallery before the real world swaps in. The scene
+  // header and navigator come from the codex exhibition spine; the 3D world IS the backdrop, so
+  // the codex backdrop image, conversation dock and mic are intentionally not ported.
   return `<section class="scene gallery-scene">
     <div class="gallery-viewport" id="museum3d">
-      <div class="world-veil" id="worldVeil"><small>ENTERING WORLD</small><b>${escapeHtml(entering.displayName)}</b><span class="veil-pulse">MATERIALISING SPACE</span></div>
-      <div class="gallery-title"><p class="eyebrow">${state.finalWorld ? "10 / THE WORLD YOU ARGUED FOR" : "04 / THE LIVING GALLERY"}</p><h2>${state.finalWorld ? "This is the world your choices built." : "Walk into the collection."}</h2><span>DRAG TO LOOK · W A S D TO WALK · CLICK AN ARTWORK OR A MASTER</span></div>
+      <div class="world-veil" id="worldVeil"><small>ENTERING WORLD</small><b>${escapeHtml(scene.title)}</b><span class="veil-pulse">MATERIALISING SPACE</span></div>
+      <div class="gallery-title">
+        <p class="eyebrow"><span id="sceneChapter">${escapeHtml(scene.chapter)}</span> · <span id="sceneArtist">${escapeHtml(scene.artist)}</span></p>
+        <h2 id="sceneTitle">${escapeHtml(scene.title)}</h2>
+        <span class="scene-prompt" id="scenePrompt">${escapeHtml(scene.prompt)}</span>
+        <span>DRAG TO LOOK · W A S D TO WALK · CLICK AN ARTWORK OR A MASTER</span>
+      </div>
       <div id="worldStatus" style="position:absolute;top:64px;left:24px;z-index:20;font:600 11px/1.4 ui-monospace,monospace;letter-spacing:.08em;color:#9fe3d0;background:rgba(0,0,0,.5);padding:6px 10px;border-radius:6px;pointer-events:none">WORLD · …</div>
       ${state.finalWorld ? `<div class="manifesto-plaque"><small>YOUR IMPOSSIBLE WORLD</small><b>${escapeHtml(state.finalWorld)}</b></div>` : ""}
       <div class="collection-status"><i></i><span id="collectionStatus">OPEN ACCESS COLLECTION · LOCAL CURATION</span></div>
@@ -332,7 +381,12 @@ function worldExplorationView() {
         <a id="focusedArtworkSource" href="${focused.sourceUrl}" target="_blank" rel="noreferrer">VIEW MUSEUM RECORD ↗</a>
       </aside>
       <div class="art-dialogue" id="artDialogue" hidden></div>
-      ${state.finalWorld ? `<button class="salon-next" data-action="reset">BEGIN AGAIN <span>→</span></button>` : `<button class="salon-next" data-action="summon">SUMMON THE FULL SALON <span>→</span></button>`}
+      <nav class="scene-navigator" aria-label="Exhibition scenes">
+        <button class="scene-arrow" data-scene-direction="-1" aria-label="Previous scene" title="Previous scene" ${index === 0 ? "disabled" : ""}>←</button>
+        <div class="scene-progress"><span id="sceneCounter">${pad(index + 1)} / ${pad(total)}</span><div>${exhibitionScenes.map((item, i) => `<button data-scene-index="${i}" class="${i === index ? "active" : ""}" aria-label="Go to ${escapeHtml(item.title)}"></button>`).join("")}</div></div>
+        <button class="scene-arrow" data-scene-direction="1" aria-label="Next scene" title="Next scene" ${index === total - 1 ? "disabled" : ""}>→</button>
+      </nav>
+      ${state.finalWorld ? `<button class="salon-next" data-action="reset">BEGIN AGAIN <span>→</span></button>` : `<button class="salon-next" data-action="summon">FORM MY ANSWER <span>→</span></button>`}
     </div>
   </section>`;
 }
@@ -458,10 +512,6 @@ function philosophyKey() {
   return ranking.slice(0,2).sort().join("+");
 }
 
-function finalWorldKey() {
-  return PHILOSOPHY_WORLDS[philosophyKey()] || DEFAULT_WORLD_KEY;
-}
-
 // The generic ending. It used to be one of four hardcoded pairs chosen by philosophy key, which
 // meant two visitors who walked completely different galleries read the identical closing sentence.
 // It survives only as the failure branch, and the manifesto labels it as one when it fires.
@@ -495,10 +545,6 @@ function manifestoView() {
 
 function bindActions() {
   experience.querySelectorAll("[data-action]").forEach(button => button.addEventListener("click", () => act(button.dataset.action)));
-  experience.querySelectorAll("[data-world]").forEach(button => button.addEventListener("click", () => {
-    state.selectedPortal = button.dataset.world;
-    setStage("companion_selection");
-  }));
   experience.querySelectorAll("[data-companion]").forEach(button => button.addEventListener("click", () => {
     const id = button.dataset.companion;
     if (state.selectedCompanions.has(id)) state.selectedCompanions.delete(id);
@@ -507,8 +553,18 @@ function bindActions() {
     button.querySelector(".companion-check").textContent = state.selectedCompanions.has(id) ? "✓" : "+";
     const count = document.querySelector("#companionCount");
     if (count) count.textContent = `${state.selectedCompanions.size} / 3 SELECTED`;
-    const enter = experience.querySelector("[data-action='enter-gallery']");
+    const enter = experience.querySelector("[data-action='curate-exhibition']");
     if (enter) enter.disabled = state.selectedCompanions.size === 0;
+  }));
+  experience.querySelectorAll("[data-life-question]").forEach(button => button.addEventListener("click", () => {
+    const input = experience.querySelector("#lifeQuestion");
+    if (input) input.value = button.dataset.lifeQuestion;
+  }));
+  experience.querySelectorAll("[data-scene-direction]").forEach(button => button.addEventListener("click", () => {
+    goToExhibitionScene(state.exhibitionSceneIndex + Number(button.dataset.sceneDirection));
+  }));
+  experience.querySelectorAll("[data-scene-index]").forEach(button => button.addEventListener("click", () => {
+    goToExhibitionScene(Number(button.dataset.sceneIndex));
   }));
   experience.querySelectorAll("[data-memory]").forEach(button => button.addEventListener("click", () => {
     state.memories.add(button.dataset.memory);
@@ -517,16 +573,23 @@ function bindActions() {
     burst(innerWidth * .72, innerHeight * .5, "#9cd0c7", 44);
   }));
   experience.querySelectorAll("[data-choice]").forEach(button => button.addEventListener("click", () => choose(button.dataset.choice)));
+  experience.querySelector("#lifeQuestionForm")?.addEventListener("submit", event => {
+    event.preventDefault();
+    const input = experience.querySelector("#lifeQuestion");
+    state.currentQuestion = input?.value.trim() || lifeQuestions[0];
+    setStage("companion_selection");
+  });
 }
 
 function act(action) {
   const actions = {
-    enter: () => setStage("museum_void"),
-    "discover-worlds": () => setStage("world_selection"),
-    "enter-gallery": () => setStage("world_exploration"),
-    // The finale: the philosophy the visitor argued for picks the world, and re-entering
-    // world_exploration now rebuilds it with philosophy scored and state.finalWorld set.
-    "enter-final-world": () => { state.selectedPortal = finalWorldKey(); setStage("world_exploration"); },
+    enter: () => setStage("life_question"),
+    "curate-exhibition": () => setStage("ai_curation"),
+    "enter-gallery": () => { state.exhibitionSceneIndex = 0; setStage("world_exploration"); },
+    // The finale: the manifesto sends the visitor into the last scene of the spine (09 / ANSWER,
+    // isFinal) with philosophy scored and state.finalWorld set, so the closing world reads as the
+    // one their walk produced.
+    "enter-final-world": () => { state.exhibitionSceneIndex = exhibitionScenes.length - 1; setStage("world_exploration"); },
     "close-inspector": () => document.querySelector("#artworkInspector")?.classList.remove("visible"),
     "close-art-dialogue": closeArtDialogue,
     summon: () => setStage("summoning"),
@@ -545,11 +608,12 @@ function selectedCompanionRecords() {
   return characters.filter(character => state.selectedCompanions.has(character.id));
 }
 
-// Resolve the world to load: the card the visitor picked (state.selectedPortal holds the
-// world key), with optional URL overrides — ?world=<key> and ?render=mesh|splat — for A/B.
+// Resolve the world to load: the current exhibition scene names it (scene.worldKey), with optional
+// URL overrides — ?world=<key> and ?render=mesh|splat — for A/B.
 function resolveSelectedWorld() {
   const params = new URLSearchParams(location.search);
-  let world = getWorld(params.get("world") || state.selectedPortal || DEFAULT_WORLD_KEY);
+  const scene = exhibitionScenes[state.exhibitionSceneIndex] || exhibitionScenes[0];
+  let world = getWorld(params.get("world") || scene.worldKey);
   const render = params.get("render");
   if (render === "mesh" || render === "splat") world = { ...world, render };
   const wscale = parseFloat(params.get("wscale")); // live immersion-scale tuning knob
@@ -572,7 +636,14 @@ async function initMuseumExperience() {
   const container = document.querySelector("#museum3d");
   if (!container || state.stage !== "world_exploration") return;
   teardownMuseumExperience();
+  const scene = exhibitionScenes[state.exhibitionSceneIndex] || exhibitionScenes[0];
   const activeWorld = resolveSelectedWorld();
+  // Scene mode: the walls hang the scene's own curated collection (interpretive studies first),
+  // in the codex exhibition order, rather than the philosophy-driven live fetch below.
+  if (Array.isArray(scene.artworks) && scene.artworks.length) {
+    state.galleryArtworks = [...scene.artworks];
+    state.focusedArtwork = scene.artworks[0];
+  }
   const setWorldStatus = (text) => { const el = document.querySelector("#worldStatus"); if (el) el.textContent = text; };
   museum3D = new Museum3D({
     container,
@@ -590,6 +661,9 @@ async function initMuseumExperience() {
   // veil. onWorldReady clears this timer on a normal (or fallback) reveal.
   worldVeilTimer = setTimeout(dismissWorldVeil, 60000);
 
+  // Every scene ships its own curated artworks, so the live open-access fetch is effectively
+  // disabled in scene mode — it only fills a scene that carries none, and none do.
+  if (Array.isArray(scene.artworks) && scene.artworks.length) return;
   const collectionStatus = document.querySelector("#collectionStatus");
   try {
     // Pre-choice this resolves to the default ending's artist; after the manifesto the
@@ -825,6 +899,19 @@ function teardownMuseumExperience() {
   if (worldVeilTimer) { clearTimeout(worldVeilTimer); worldVeilTimer = null; }
 }
 
+// Move through the exhibition spine while staying in world_exploration. Tearing the museum down,
+// re-rendering, then re-mounting on the next microtask lets the fresh worldVeil cover the world
+// swap exactly as the first entry does, so no half-loaded splat flashes between scenes.
+function goToExhibitionScene(index) {
+  const clamped = Math.max(0, Math.min(exhibitionScenes.length - 1, index));
+  if (clamped === state.exhibitionSceneIndex && document.querySelector("#museum3d")) return;
+  state.exhibitionSceneIndex = clamped;
+  if (state.stage !== "world_exploration") return;
+  teardownMuseumExperience();
+  render();
+  queueMicrotask(initMuseumExperience);
+}
+
 /**
  * Asks the closing roundtable to synthesise the walk. The digest is already capped at construction
  * (SESSION_CAPS); the server re-clamps it, because a client cap is a product decision and not a
@@ -912,7 +999,7 @@ function reset() {
   // and has always omitted some (`memories`), which meant a second run inherited the first run's
   // data — now also cleared. A judge who watches two runs would otherwise see run one's walk
   // synthesised as run two's ending.
-  Object.assign(state, { stage:"threshold", selectedPortal:null, activeSpeaker:null, session:emptySession(), roundtable:emptyRoundtable(), memories:new Set(), philosophy:{perception:0,emotion:0,invention:0}, finalWorld:null, transformationStart:0, transformationChoice:null, selectedCompanions:new Set(["monet","van_gogh","socrates"]), galleryArtworks:[...museumArtworks], focusedArtwork:museumArtworks[0] });
+  Object.assign(state, { stage:"threshold", selectedPortal:null, activeSpeaker:null, currentQuestion:null, exhibitionSceneIndex:0, session:emptySession(), roundtable:emptyRoundtable(), memories:new Set(), philosophy:{perception:0,emotion:0,invention:0}, finalWorld:null, transformationStart:0, transformationChoice:null, selectedCompanions:new Set(["monet","van_gogh","socrates"]), galleryArtworks:[...museumArtworks], focusedArtwork:museumArtworks[0] });
   particleMode = "threshold";
   setStage("threshold");
 }
@@ -1208,7 +1295,7 @@ function drawVignette() {
 addEventListener("resize",resize);
 addEventListener("pointermove",event=>{pointer.x=event.clientX;pointer.y=event.clientY;});
 addEventListener("keydown",event=>{
-  const keys={"1":"threshold","2":"museum_void","3":"world_exploration","4":"summoning","5":"roundtable","6":"world_transformation","7":"manifesto"};
+  const keys={"1":"threshold","2":"life_question","3":"companion_selection","4":"ai_curation","5":"world_exploration","6":"summoning","7":"roundtable","8":"decision","9":"world_transformation","0":"manifesto"};
   if(keys[event.key]) setStage(keys[event.key]);
   if(event.key.toLowerCase()==="r") reset();
   if(event.key.toLowerCase()==="m") toggleAudio();
