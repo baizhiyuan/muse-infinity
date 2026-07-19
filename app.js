@@ -371,13 +371,12 @@ function worldExplorationView() {
     <div class="gallery-viewport" id="museum3d">
       <div class="world-veil" id="worldVeil"><small>ENTERING WORLD</small><b>${escapeHtml(scene.title)}</b><span class="veil-pulse">MATERIALISING SPACE</span></div>
       <div class="gallery-title">
-        <p class="eyebrow"><span id="sceneChapter">${escapeHtml(scene.chapter)}</span> · <span id="sceneArtist">${escapeHtml(scene.artist)}</span></p>
-        <h2 id="sceneTitle">${escapeHtml(scene.title)}</h2>
+        <p class="eyebrow"><span id="sceneChapter">${escapeHtml(scene.chapter)}</span> · <span id="sceneArtist">${state.finalWorld ? "YOUR IMPOSSIBLE WORLD" : escapeHtml(scene.artist)}</span></p>
+        <h2 id="sceneTitle">${escapeHtml(state.finalWorld || scene.title)}</h2>
         <span class="scene-prompt" id="scenePrompt">${escapeHtml(scene.prompt)}</span>
         <span>DRAG TO LOOK · W A S D TO WALK · CLICK AN ARTWORK OR A MASTER</span>
       </div>
       <div id="worldStatus" style="position:absolute;top:64px;left:24px;z-index:20;font:600 11px/1.4 ui-monospace,monospace;letter-spacing:.08em;color:#9fe3d0;background:rgba(0,0,0,.5);padding:6px 10px;border-radius:6px;pointer-events:none">WORLD · …</div>
-      ${state.finalWorld ? `<div class="manifesto-plaque"><small>YOUR IMPOSSIBLE WORLD</small><b>${escapeHtml(state.finalWorld)}</b></div>` : ""}
       <div class="collection-status"><i></i><span id="collectionStatus">OPEN ACCESS COLLECTION · LOCAL CURATION</span></div>
       <div class="companion-dock" aria-label="Your museum companions">${companions.map(character => `<div class="companion-chip" title="${character.fullName}"><img src="${character.portrait}" alt="${character.fullName}"/><span>${character.name}</span></div>`).join("")}</div>
       <aside class="artwork-inspector" id="artworkInspector">
