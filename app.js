@@ -126,14 +126,12 @@ const state = {
 let museum3D = null;
 let voiceConversation = null;
 
-// Legacy effect -> particle-mode map. Its only reader was the scripted dialogue that this file no
-// longer has; the live `effect` field returned by /api/dialogue is wired to the scene separately.
-const effectModes = {
-  soften_boundaries:"mist", shift_light:"mist", fracture_geometry:"fracture",
-  multiply_particles:"infinity", emotional_turbulence:"turbulence",
-  grow_memory_garden:"garden", open_philosophical_void:"void",
-  connect_idea_network:"network", merge_worlds:"hybrid"
-};
+// The legacy `effectModes` literal lived here: a second, independent effect vocabulary whose keys
+// (`soften_boundaries`, …) never matched the server's enum values, so every lookup missed. It was
+// already unreachable — its only reader was the scripted dialogue this file no longer has — and
+// keeping a dead second list is exactly what let the two vocabularies drift apart in the first
+// place. The live `effect` from /api/dialogue is now resolved in one place, config/effects.js,
+// and applied to the three.js scene lights by Museum3D#setEffect.
 
 const characters = salonParticipants;
 
@@ -501,6 +499,12 @@ async function initMuseumExperience() {
       for (const perspective of reply.perspectives || []) {
         state.session = recordPerspective(state.session, perspective);
         appendPerspective(perspective, reply.live);
+        // Each perspective names an `effect`, and until now the client read the text and threw the
+        // effect away — the room never changed. Hand it to the scene: the lights re-aim toward the
+        // effect of whichever perspective was rendered last, so by the time the three readings have
+        // printed the space is lit the way the closing voice sees it. An effect outside the shared
+        // vocabulary warns inside setEffect rather than silently landing on a default.
+        museum3D?.setEffect(perspective.effect);
       }
       // The server has always returned `warning`/`error` and nobody read them. A failed or
       // fallback turn is now stated on screen instead of passing as an ordinary reply.
