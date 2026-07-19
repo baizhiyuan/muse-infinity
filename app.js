@@ -376,7 +376,6 @@ function worldExplorationView() {
         <span class="scene-prompt" id="scenePrompt">${escapeHtml(scene.prompt)}</span>
         <span>DRAG TO LOOK · W A S D TO WALK · CLICK AN ARTWORK OR A MASTER</span>
       </div>
-      <div id="worldStatus" style="position:absolute;top:64px;left:24px;z-index:20;font:600 11px/1.4 ui-monospace,monospace;letter-spacing:.08em;color:#9fe3d0;background:rgba(0,0,0,.5);padding:6px 10px;border-radius:6px;pointer-events:none">WORLD · …</div>
       <div class="collection-status"><i></i><span id="collectionStatus">OPEN ACCESS COLLECTION · LOCAL CURATION</span></div>
       <div class="companion-dock" aria-label="Your museum companions">${companions.map(character => `<div class="companion-chip" title="${character.fullName}"><img src="${character.portrait}" alt="${character.fullName}"/><span>${character.name}</span></div>`).join("")}</div>
       <aside class="artwork-inspector" id="artworkInspector">
@@ -654,7 +653,6 @@ async function initMuseumExperience() {
     state.galleryArtworks = [...scene.artworks];
     state.focusedArtwork = scene.artworks[0];
   }
-  const setWorldStatus = (text) => { const el = document.querySelector("#worldStatus"); if (el) el.textContent = text; };
   museum3D = new Museum3D({
     container,
     artworks: state.galleryArtworks,
@@ -662,12 +660,11 @@ async function initMuseumExperience() {
     onArtworkFocus: focusArtwork,
     onCompanionSelect: selectCompanion,
     onReady: () => container.classList.add("ready"),
-    onWorldReady: ({ key, render }) => { setWorldStatus(`${key} · ${render} · READY`); dismissWorldVeil(); },
+    onWorldReady: () => dismissWorldVeil(),
     onTourUpdate: updateTourGuide,
     world: activeWorld
   });
   museum3D.mount();
-  setWorldStatus(`${activeWorld.key} · ${activeWorld.render || (activeWorld.meshUrl ? "mesh" : "splat")} · LOADING…`);
   // Safety net: a stalled world load (network, decode) must never trap the live demo behind the
   // veil. onWorldReady clears this timer on a normal (or fallback) reveal.
   worldVeilTimer = setTimeout(dismissWorldVeil, 60000);
