@@ -680,6 +680,9 @@ async function handleArtworks(url, response) {
     artist: item.artist_title || String(item.artist_display || "Unknown artist").split("\n")[0],
     date: item.date_display || "Date unknown",
     image: `${iiif}/${item.image_id}/full/843,/0/default.jpg`,
+    // 2x rendition for the in-world canvases: 843px reads soft on a metre-wide plane at
+    // DPR 2. The client falls back to `image` if this size 404s for a given work.
+    imageHi: `${iiif}/${item.image_id}/full/1686,/0/default.jpg`,
     source: "Art Institute of Chicago",
     sourceUrl: `https://www.artic.edu/artworks/${item.id}`,
     rights: "Public-domain artwork image via Art Institute of Chicago Open Access / IIIF"
