@@ -11,9 +11,9 @@ These files were generated as original visual direction assets for this project 
 - `assets/generated/between-worlds-romantic-v2.png` — bright rotunda/portal direction for the Museum Between Worlds stage.
 - `assets/generated/world-selection-gallery-v2.png` — airy gallery-wall direction for choosing a world.
 - `assets/generated/monet-light-world-v2.png` — luminous water-garden direction for the Monet exploration stage.
-- `assets/generated/museum-salon-romantic-v2.png` — recommended airy salon background for artist conversation scenes.
+- `assets/generated/museum-salon-romantic-v2.png` — recommended airy companion-conversation background for artist and thinker scenes.
 - `assets/generated/transformation-romantic-v2.png` — bright spatial rewrite direction for the transformation stage.
-- `assets/generated/manifesto-garden-v2.png` — serene final personal museum world for the manifesto stage.
+- `assets/generated/manifesto-garden-v2.png` — serene final dream-world direction for the manifesto stage.
 - `assets/generated/muse-hero-concept.png` — impossible museum exterior and garden archive direction.
 - `assets/generated/perspective-masks-grid.png` — four abstract non-likeness perspective masks.
 - `assets/generated/transformation-gallery-concept.png` — museum-to-world transformation direction.
@@ -29,7 +29,7 @@ The v2 romantic assets are the preferred production direction. The darker first-
 
 Generated scene images must not be described as World Labs output, historical evidence, museum collection records, or authentic depictions of named philosophers/artists.
 
-The seven turnaround sheets are production inputs, not historical records. Their frontal identity reference comes from the documented public-domain portrait or sculpture listed in `THIRD_PARTY_NOTICES.md`; unseen angles, costume continuation, lighting and geometry are interpretive AI synthesis. Each sheet has mechanically cropped front, left, back and right files under `assets/generated/turnarounds/views/` for Tripo's ordered multiview input. Any model produced from them must retain an "AI interpretation" label.
+The turnaround sheets are production inputs, not historical records. Their frontal identity reference comes from the documented public-domain portrait or sculpture listed in `THIRD_PARTY_NOTICES.md`; unseen angles, costume continuation, lighting and geometry are interpretive AI synthesis. Each sheet has mechanically cropped front, left, back and right files under `assets/generated/turnarounds/views/` for Tripo's ordered multiview input. Any model produced from them must retain an "AI interpretation" label.
 
 ## 2. Public-domain artwork/reference assets
 

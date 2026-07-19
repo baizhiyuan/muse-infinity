@@ -1,16 +1,16 @@
 # MUSE∞ — The Impossible Museum
 
-> Enter any museum. Meet any mind. Rewrite art history.
+> Ask one question. Walk through the dream gallery it becomes.
 
-MUSE∞ is a browser-based cultural experience where conversation changes the world. A visitor enters an impossible museum, borrows an artistic perspective, summons a salon across centuries, faces conflicting interpretations, and makes a choice that physically rewrites the surrounding visual system into a personal museum world.
+MUSE∞ is an AI-native dream museum where one personal question becomes a walkable 3D gallery. A visitor asks an existential theme, chooses artist and thinker companions, explores open-access artworks across connected world-regions, and watches each grounded conversation reshape the surrounding environment.
 
-This repository contains a full-stack engineering spike, a local Three.js walkable gallery, and the Phase 2 point-cloud architecture. It uses a deterministic local particle world, cached public-domain artworks, and curated dialogue as the lowest fallback, while exposing live Art Institute of Chicago Open Access, GPT-5.6 Responses, OpenAI Realtime, World Labs Marble, and Tripo integration points.
+This repository contains the Build Week engineering baseline for that product: a local Three.js walkable gallery, open-access artwork loading, GPT-5.6 dialogue with honest fallback, deterministic world transformations, and server-only World Labs Marble and Tripo integration points.
 
 For the latest product direction and engineer-facing build spec, read [LATEST_PRODUCT_SPEC.md](LATEST_PRODUCT_SPEC.md).
 
-## Engineering spike result
+## Current build result
 
-The spike proves one production-shaped path through the concept without making the judging journey depend on paid services: the browser enters a real Three.js gallery, loads open-access museum records through a server proxy, asks an artwork-aware GPT-5.6 dialogue route when configured, and falls back honestly when it is not. Separate server-only adapters cover OpenAI Realtime, World Labs Marble generation, and Tripo multiview/rigging tasks. Paid generation routes require `INTEGRATION_ADMIN_TOKEN`; the static server exposes only the runtime files needed by the browser and blocks `.env`, repository metadata, server code, tests, and project documents.
+The current build proves one production-shaped path through the concept without making the judging journey depend on paid services: the browser enters a real Three.js gallery, loads open-access museum records through a server proxy, asks an artwork-aware GPT-5.6 dialogue route when configured, and falls back honestly when it is not. Separate server-only adapters cover OpenAI Realtime, World Labs Marble generation, and Tripo multiview/rigging tasks. Paid generation routes require `INTEGRATION_ADMIN_TOKEN`; the static server exposes only the runtime files needed by the browser and blocks `.env`, repository metadata, server code, tests, and project documents.
 
 ## Run
 
@@ -41,16 +41,16 @@ The contract suite validates the World Labs and Tripo request shapes without spe
 
 ## Working vertical slice
 
-1. Threshold
+1. Question gate
 2. Museum Between Worlds
-3. Five visible artistic world nodes
-4. Selection of up to three public-domain historical portrait companions
+3. Continuous dream-gallery route
+4. Selection of up to three historical companion perspectives
 5. A real WebGL gallery with drag/WASD navigation and clickable artworks
 6. Live Art Institute of Chicago Open Access/IIIF loading with local fallback
 7. Voice/text questions routed to GPT-5.6 when configured, with honest local fallback
-8. Seven-participant impossible salon and three discussion prompts
+8. Artwork-grounded companion responses and discussion prompts
 9. One user choice and a visible particle-world transformation
-10. A personalized final world and manifesto
+10. A personalized final dream world and manifesto
 
 The prototype includes a centralized experience state, constrained world-effect vocabulary, cached fallback dialogue, responsive design, reduced-motion support, a deterministic particle renderer, and a Three.js gallery renderer.
 
@@ -61,7 +61,7 @@ The prototype includes a centralized experience state, constrained world-effect 
 | `1` | Threshold |
 | `2` | Museum Between Worlds |
 | `3` | World of Light |
-| `4` | Salon |
+| `4` | Companion conversation |
 | `5` | Discussion questions |
 | `6` | Transformation |
 | `7` | Final world |
@@ -129,7 +129,7 @@ World Labs and Tripo generation/task endpoints are intentionally separate from t
 
 ## Tripo character assets
 
-Seven labeled multi-view inputs are stored under:
+Labeled multi-view inputs are stored under:
 
 ```text
 /assets/generated/turnarounds/
@@ -172,8 +172,9 @@ The frontend vertical slice was built with Codex during the hackathon workflow. 
 Key human product decisions retained in the implementation:
 
 - Conversation must alter the world, not sit in a chat panel.
-- Only one world is explorable in the MVP.
-- Seven independent autonomous agents are excluded.
+- The MVP should feel like one continuous dream gallery, not disconnected random rooms.
+- Up to three active companions are stronger than a crowded cast.
+- Independent autonomous agents are excluded.
 - The critical judging path has no live-service dependency.
 - Historical dialogue is interpretive and never presented as quotation.
 

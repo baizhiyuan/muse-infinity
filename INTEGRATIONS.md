@@ -54,12 +54,12 @@ The runtime does not require an MCP server. MCP is useful for development-time d
 - Secret: `TRIPO_API_KEY`, server-side only.
 - Integration point: place optimized output under `models/` and load it with Three.js `GLTFLoader`.
 - Required cleanup: retopology, texture-size reduction, Draco/Meshopt compression, scale/orientation check, and license record.
-- Current status: seven labeled multi-view input sheets and 28 ordered front/left/back/right files are ready under `assets/generated/turnarounds/`; no GLB is claimed or bundled until an authenticated generation task completes and the output is reviewed.
+- Current status: labeled multi-view input sheets and ordered front/left/back/right files are ready under `assets/generated/turnarounds/`; no GLB is claimed or bundled until an authenticated generation task completes and the output is reviewed.
 - Renderer status: `lib/museum3d.js` already includes an optional `GLTFLoader` path. After review, set a participant's `model` field in `config/museumAssets.js`; null model fields intentionally render no fake stand-in.
 - Server routes now available:
   - `POST /api/tripo/models` with a text prompt, public HTTPS `imageUrl`, or previously uploaded `fileToken`.
   - `POST /api/tripo/multiview` with exactly four HTTPS URLs, file tokens, or upload objects in `[front, left, back, right]` order.
-  - `GET /api/tripo/characters` returns the seven safe asset manifests; `POST /api/tripo/characters/:id` submits one character using `PUBLIC_APP_URL`.
+  - `GET /api/tripo/characters` returns the reviewed asset manifests; `POST /api/tripo/characters/:id` submits one character using `PUBLIC_APP_URL`.
   - `GET /api/tripo/tasks/:taskId` for progress and output polling.
   - `POST /api/tripo/rig-check`, `/api/tripo/rig`, and `/api/tripo/retarget` for optional character animation.
 - Model generation and rigging are explicit actions because they consume credits. Completed GLB URLs are temporary and must be downloaded to durable storage before they expire.
@@ -82,7 +82,7 @@ Historical portraits are evidence for identity, but generated unseen angles are 
 2. Use 3D busts only for deceased historical figures with a clear source record.
 3. Label every 3D result as an AI interpretation, not a reconstruction or authentic likeness.
 4. Do not create photorealistic living-artist avatars or cloned voices.
-5. Prefer three strong companions over seven weak or legally ambiguous characters.
+5. Prefer three strong active companions over a crowded or legally ambiguous cast.
 
 ## MCPs that help during development
 
