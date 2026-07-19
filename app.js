@@ -6,7 +6,7 @@ import { createMemoryWorld, memoryPalette } from "./lib/memoryWorld.js";
 import { museumArtworks, salonParticipants } from "./config/museumAssets.js";
 import { Museum3D } from "./lib/museum3d.js";
 import { loadOpenAccessArtworks } from "./services/museumCollections.js";
-import { VoiceConversation } from "./services/voiceConversation.js";
+import { artworkChoices, AXIS_CHAMPIONS, DIALOGUE_DISCLAIMER, voiceFor, formatLine } from "./config/companionDialogues.js";
 import { getWorld, listWorlds, DEFAULT_WORLD_KEY, PHILOSOPHY_WORLDS, PHILOSOPHY_QUERIES } from "./config/worlds.js";
 
 const canvas = document.querySelector("#world");
@@ -81,7 +81,9 @@ const state = {
 };
 
 let museum3D = null;
-let voiceConversation = null;
+let artDialogueTurn = 0;
+let typewriterTimer = null;
+let currentDialogueArtwork = null;
 
 const effectModes = {
   soften_boundaries:"mist", shift_light:"mist", fracture_geometry:"fracture",
@@ -255,11 +257,7 @@ function worldExplorationView() {
         <h3 id="focusedArtworkTitle">${escapeHtml(focused.title)}</h3>
         <a id="focusedArtworkSource" href="${focused.sourceUrl}" target="_blank" rel="noreferrer">VIEW MUSEUM RECORD ↗</a>
       </aside>
-      <section class="conversation-dock" aria-label="Talk with your museum companions">
-        <div class="conversation-head"><div><small>WALKING CONVERSATION</small><b id="voiceState">LOCAL PREVIEW</b></div><button class="mic-button" data-action="voice-listen" aria-label="Speak to your companions"><span>◉</span> TALK</button></div>
-        <div class="conversation-log" id="conversationLog"><p><b>${companions[0]?.name || "MUSE"}</b> Ask us what this room changes about the way you see.</p></div>
-        <form id="galleryQuestionForm" class="conversation-form"><input id="galleryQuestion" autocomplete="off" placeholder="Ask the group while you walk…" aria-label="Question for your companions"/><button>ASK</button></form>
-      </section>
+      <div class="art-dialogue" id="artDialogue" hidden></div>
       ${state.finalWorld ? `<button class="salon-next" data-action="reset">BEGIN AGAIN <span>→</span></button>` : `<button class="salon-next" data-action="summon">SUMMON THE FULL SALON <span>→</span></button>`}
     </div>
   </section>`;
@@ -349,13 +347,6 @@ function bindActions() {
     showDialogue();
   }));
   experience.querySelectorAll("[data-choice]").forEach(button => button.addEventListener("click", () => choose(button.dataset.choice)));
-  const questionForm = experience.querySelector("#galleryQuestionForm");
-  questionForm?.addEventListener("submit", event => {
-    event.preventDefault();
-    const input = experience.querySelector("#galleryQuestion");
-    voiceConversation?.ask(input?.value || "");
-    if (input) input.value = "";
-  });
 }
 
 function act(action) {
@@ -367,7 +358,7 @@ function act(action) {
     // world_exploration now rebuilds it with philosophy scored and state.finalWorld set.
     "enter-final-world": () => { state.selectedPortal = finalWorldKey(); setStage("world_exploration"); },
     "close-inspector": () => document.querySelector("#artworkInspector")?.classList.remove("visible"),
-    "voice-listen": () => voiceConversation?.listen(),
+    "close-art-dialogue": closeArtDialogue,
     summon: () => setStage("summoning"),
     "open-salon": () => setStage("roundtable"),
     "next-dialogue": nextDialogue,
@@ -411,15 +402,6 @@ async function initMuseumExperience() {
   });
   museum3D.mount();
   setWorldStatus(`${activeWorld.key} · ${activeWorld.render || (activeWorld.meshUrl ? "mesh" : "splat")} · LOADING…`);
-  voiceConversation = new VoiceConversation({
-    context: () => ({
-      companions: selectedCompanionRecords().map(({ id, fullName }) => ({ id, name: fullName })),
-      artwork: state.focusedArtwork ? { title: state.focusedArtwork.title, artist: state.focusedArtwork.artist, date: state.focusedArtwork.date } : null
-    }),
-    onState: updateVoiceState,
-    onUserText: text => appendConversation("YOU", text),
-    onReply: reply => appendConversation(reply.speaker || "MUSE", reply.text, reply.live)
-  });
 
   const collectionStatus = document.querySelector("#collectionStatus");
   try {
@@ -447,44 +429,119 @@ function focusArtwork(artwork) {
   if (title) title.textContent = artwork.title;
   if (source) source.href = artwork.sourceUrl;
   inspector?.classList.add("visible");
-  // Act4 (spec core wow): clicking an artwork makes a selected companion respond to IT,
-  // grounded in its metadata, via live GPT-5.6. context() already carries the just-set
-  // state.focusedArtwork, so the reply is about this specific work.
-  voiceConversation?.ask(`Tell me how you see "${artwork.title}".`);
+  // Act4: clicking an artwork opens a game-style dialogue — a companion speaks about
+  // THIS work (scripted per-master lines, demo-safe), the visitor answers, and the
+  // answer feeds the same philosophy meter that builds the final world. A live
+  // /api/dialogue reply enriches the popup asynchronously when available.
+  openArtDialogue(artwork);
 }
 
-function appendConversation(speaker, text, live = false) {
-  const log = document.querySelector("#conversationLog");
-  if (!log) return;
-  const paragraph = document.createElement("p");
-  const label = document.createElement("b");
-  label.textContent = speaker;
-  paragraph.append(label, document.createTextNode(` ${text}`));
-  if (live) paragraph.dataset.live = "true";
-  log.append(paragraph);
-  log.scrollTop = log.scrollHeight;
+function pickOpeningSpeaker() {
+  const pool = selectedCompanionRecords();
+  if (!pool.length) return characters[0];
+  return pool[artDialogueTurn++ % pool.length];
 }
 
-function updateVoiceState(status) {
-  const label = document.querySelector("#voiceState");
-  const mic = document.querySelector(".mic-button");
-  const labels = {
-    listening: "LISTENING…",
-    thinking: "GPT-5.6 THINKING…",
-    live: "GPT-5.6 LIVE",
-    local: "LOCAL FALLBACK",
-    offline: "CONNECTION PAUSED",
-    unsupported: "TYPE YOUR QUESTION"
-  };
-  if (label) label.textContent = labels[status] || "VOICE TOUR";
-  mic?.classList.toggle("listening", status === "listening");
+function pickReactionSpeaker(axis, openerId) {
+  const pool = selectedCompanionRecords();
+  const champion = (AXIS_CHAMPIONS[axis] || []).map(id => pool.find(c => c.id === id)).find(c => c && c.id !== openerId);
+  return champion || pool.find(c => c.id !== openerId) || pool[0] || characters[0];
+}
+
+function artDialogueMarkup(speaker, { choices = true } = {}) {
+  return `<button class="art-dialogue-close" data-action="close-art-dialogue" aria-label="Close dialogue">×</button>
+    <div class="art-dialogue-head" style="--speaker-color:${speaker.color}">${speaker.portrait ? `<img src="${speaker.portrait}" alt="${escapeHtml(speaker.fullName)}"/>` : ""}<div><small>SPEAKS TO YOU</small><b>${escapeHtml(speaker.fullName)}</b></div></div>
+    <p class="art-dialogue-line" id="artDialogueLine"></p>
+    <div class="art-dialogue-live" id="artDialogueLive"></div>
+    ${choices
+      ? `<div class="art-dialogue-choices">${artworkChoices.map((choice, i) => `<button class="art-choice" data-art-choice="${choice.id}" style="--speaker-color:${speaker.color}"><small>0${i + 1}</small><span>${choice.label}</span></button>`).join("")}</div>`
+      : `<div class="art-dialogue-choices"><button class="art-choice art-continue" data-action="close-art-dialogue"><span>CONTINUE THE WALK →</span></button></div>`}
+    <span class="art-dialogue-disclaimer">${DIALOGUE_DISCLAIMER}</span>`;
+}
+
+function openArtDialogue(artwork) {
+  const host = document.querySelector("#artDialogue");
+  if (!host) return;
+  currentDialogueArtwork = artwork;
+  const speaker = pickOpeningSpeaker();
+  host.hidden = false;
+  host.innerHTML = artDialogueMarkup(speaker, { choices: true });
+  bindArtDialogue(host, artwork, speaker);
+  typewrite(formatLine(voiceFor(speaker.id).opening, artwork));
+  fetchLiveArtReply(artwork);
+}
+
+function bindArtDialogue(host, artwork, opener) {
+  host.querySelectorAll("[data-action='close-art-dialogue']").forEach(button => button.addEventListener("click", closeArtDialogue));
+  host.querySelectorAll("[data-art-choice]").forEach(button => button.addEventListener("click", () => onArtChoice(artwork, opener, button.dataset.artChoice)));
+}
+
+function onArtChoice(artwork, opener, choiceId) {
+  const choice = artworkChoices.find(({ id }) => id === choiceId);
+  if (!choice) return;
+  for (const key of Object.keys(state.philosophy)) state.philosophy[key] += choice.delta[key] || 0;
+  updateMeter();
+  const speaker = pickReactionSpeaker(choiceId, opener.id);
+  burst(innerWidth * .5, innerHeight * .62, speaker.color, 40);
+  const host = document.querySelector("#artDialogue");
+  if (!host) return;
+  const liveContent = document.querySelector("#artDialogueLive")?.innerHTML || "";
+  host.innerHTML = artDialogueMarkup(speaker, { choices: false });
+  const liveSlot = document.querySelector("#artDialogueLive");
+  if (liveSlot) liveSlot.innerHTML = liveContent;
+  bindArtDialogue(host, artwork, speaker);
+  typewrite(voiceFor(speaker.id).reactions[choiceId] || "");
+}
+
+async function fetchLiveArtReply(artwork) {
+  try {
+    const response = await fetch("/api/dialogue", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        question: `Tell me how you see "${artwork.title}".`,
+        companions: selectedCompanionRecords().map(({ id, fullName }) => ({ id, name: fullName })),
+        artwork: { title: artwork.title, artist: artwork.artist, date: artwork.date }
+      })
+    });
+    if (!response.ok) return;
+    const reply = await response.json();
+    if (currentDialogueArtwork !== artwork || !reply?.text) return;
+    const liveSlot = document.querySelector("#artDialogueLive");
+    if (liveSlot) liveSlot.innerHTML = `<b>${escapeHtml(reply.speaker || "MUSE")}${reply.live ? " · LIVE" : ""}</b> ${escapeHtml(reply.text)}`;
+  } catch {
+    // Scripted dialogue is the primary experience; a missing live reply is silent.
+  }
+}
+
+function typewrite(text) {
+  if (typewriterTimer) { clearInterval(typewriterTimer); typewriterTimer = null; }
+  const node = document.querySelector("#artDialogueLine");
+  if (!node) return;
+  let shown = 0;
+  node.textContent = "";
+  typewriterTimer = setInterval(() => {
+    shown = Math.min(text.length, shown + 2);
+    node.textContent = text.slice(0, shown);
+    if (shown >= text.length) { clearInterval(typewriterTimer); typewriterTimer = null; }
+  }, 24);
+  node.addEventListener("click", () => {
+    if (typewriterTimer) { clearInterval(typewriterTimer); typewriterTimer = null; }
+    node.textContent = text;
+  }, { once: true });
+}
+
+function closeArtDialogue() {
+  if (typewriterTimer) { clearInterval(typewriterTimer); typewriterTimer = null; }
+  currentDialogueArtwork = null;
+  const host = document.querySelector("#artDialogue");
+  if (host) { host.hidden = true; host.innerHTML = ""; }
 }
 
 function teardownMuseumExperience() {
   museum3D?.dispose();
   museum3D = null;
-  voiceConversation?.dispose();
-  voiceConversation = null;
+  closeArtDialogue();
 }
 
 function showDialogue() {
@@ -836,11 +893,14 @@ addEventListener("keydown",event=>{
   if(event.key.toLowerCase()==="r") reset();
   if(event.key.toLowerCase()==="m") toggleAudio();
   if(event.key.toLowerCase()==="p") togglePerformance();
+  if(event.key==="Escape") closeArtDialogue();
   if(event.altKey && event.key.toLowerCase()==="d" && ["localhost","127.0.0.1"].includes(location.hostname) && !state.demoMode) {
     debugPanel.hidden = !debugPanel.hidden;
     updateDebugPanel();
   }
 });
+
+if (["localhost", "127.0.0.1"].includes(location.hostname)) window.__museDebug = { openArtDialogue, closeArtDialogue };
 
 document.querySelectorAll("[data-action='reset']").forEach(button=>button.addEventListener("click",reset));
 document.querySelector("[data-action='toggle-audio']").addEventListener("click",toggleAudio);
