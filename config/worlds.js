@@ -201,10 +201,11 @@ export const WORLDS = {
     render: "splat",
     worldScale: 1.7, // open worlds tuned like the finale ones (feedback #11): world grand, people human-scale
     metric: { scale: 1.7981, ty: 1.1657 },
-    // Spawn re-derived from the collider (user report: started off-position): the map's
-    // geometric centre is a no-ground water/void strip (0 verts), so spawn sits on the nearest
-    // dense cell of the ~3m main terrace, (26,38), with groundY matched to that plateau.
-    profile: { spawn: { x: 26.0, z: 38.0 }, groundY: 3.0, bounds: { minX: -75.29, maxX: 68.24, minZ: 1.12, maxZ: 82.68 }, yaw: 0, cameraFar: 400 },
+    // Spawn picked for OPENNESS, not vertex density (dense cells = shrubbery = the occlusion
+    // the user complained about): (22,46) sits on the walkable ~3m terrace inside a run of
+    // cells with ZERO tall geometry around ((20,40)->(28,60)), and yaw PI faces down that open
+    // corridor. The map's geometric centre itself is a no-ground water strip.
+    profile: { spawn: { x: 22.0, z: 46.0 }, groundY: 3.0, bounds: { minX: -75.29, maxX: 68.24, minZ: 1.12, maxZ: 82.68 }, yaw: Math.PI, cameraFar: 400 },
     enclosed: false,
     recommended: false,
   },
