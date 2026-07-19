@@ -10,6 +10,9 @@ const environment = {
   HOST: "127.0.0.1",
   PORT: String(port),
   OPENAI_API_KEY: "",
+  // server.mjs resolves LLM_API_KEY || OPENAI_API_KEY. Clearing only the latter left the
+  // no-key contract dependent on the developer's shell not exporting LLM_API_KEY.
+  LLM_API_KEY: "",
   WORLDLABS_API_KEY: "",
   TRIPO_API_KEY: "",
   INTEGRATION_ADMIN_TOKEN: "test-admin-token"

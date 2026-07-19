@@ -5,6 +5,7 @@ import { extname, normalize, resolve, sep } from "node:path";
 import { generateWorld, getWorldOperation, worldLabsConfigured } from "./services/worldLabsApi.js";
 import { animateTripoModel, checkTripoRig, generateTripoModel, generateTripoMultiviewModel, getTripoTask, rigTripoModel, tripoConfigured } from "./services/tripoApi.js";
 import { salonParticipants } from "./config/museumAssets.js";
+import { EFFECT_VOCABULARY, describeInvalidEffect } from "./config/effects.js";
 
 // LLM config: prefer LLM_* (OpenAI-compatible proxy, e.g. baizhiyuan); fall back to OPENAI_*.
 const LLM_API_KEY = process.env.LLM_API_KEY || process.env.OPENAI_API_KEY;
@@ -97,6 +98,102 @@ function extractResponseText(payload) {
   return "";
 }
 
+// One bounded retry. A second attempt is worth it for transport faults, 5xx, 429, and for a
+// well-formed 200 carrying the wrong shape — a count/enum mismatch is exactly the stochastic
+// failure a retry recovers. A non-429 4xx is a request defect: retrying only doubles the latency.
+const LLM_RETRY_LIMIT = 1;
+
+function isRetryableStatus(status) {
+  return status === 429 || status >= 500;
+}
+
+async function requestLLM({ instructions, input, schema }) {
+  let llmResponse;
+  try {
+    llmResponse = await fetch(`${LLM_BASE_URL}/v1/responses`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${LLM_API_KEY}`, "content-type": "application/json" },
+      body: JSON.stringify({
+        model: LLM_MODEL,
+        store: false,
+        instructions,
+        input,
+        text: { format: { type: "json_schema", name: schema.name, strict: true, schema: schema.schema } }
+      })
+    });
+  } catch (error) {
+    throw Object.assign(new Error(`LLM transport failed: ${error.message}`), { retryable: true });
+  }
+
+  if (!llmResponse.ok) {
+    const detail = await llmResponse.text().catch(() => "");
+    throw Object.assign(new Error(`LLM proxy returned ${llmResponse.status}: ${detail.slice(0, 300)}`), {
+      retryable: isRetryableStatus(llmResponse.status)
+    });
+  }
+
+  const payload = await llmResponse.json().catch(error => {
+    throw Object.assign(new Error(`LLM envelope was not JSON: ${error.message}`), { retryable: true });
+  });
+  const text = extractResponseText(payload);
+  if (!text) throw Object.assign(new Error("LLM response carried no output_text content."), { retryable: true });
+
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch (error) {
+    throw Object.assign(new Error(`LLM output was not valid JSON: ${error.message}`), { retryable: true });
+  }
+
+  // Schema-conformance failure. strict json_schema makes this rare, not impossible.
+  const problem = schema.validate?.(parsed);
+  if (problem) throw Object.assign(new Error(`LLM output failed conformance: ${problem}`), { retryable: true });
+
+  return parsed;
+}
+
+/**
+ * Shared LLM entrypoint for every live endpoint. Owns the /v1/responses fetch, stderr logging,
+ * one bounded retry, and throwing on failure. It NEVER returns canned prose — callers that want
+ * a fallback must choose it explicitly and label it, so no failure can hide behind an HTTP 200.
+ */
+async function callLLM({ instructions, input, schema }) {
+  if (!LLM_API_KEY) throw new Error("LLM_API_KEY is not configured on the server.");
+  let lastError = null;
+  for (let attempt = 1; attempt <= LLM_RETRY_LIMIT + 1; attempt += 1) {
+    try {
+      return await requestLLM({ instructions, input, schema });
+    } catch (error) {
+      lastError = error;
+      console.error(
+        `[llm] schema=${schema.name} model=${LLM_MODEL} attempt=${attempt}/${LLM_RETRY_LIMIT + 1} ` +
+        `inputChars=${String(input || "").length} failed: ${error.message}`
+      );
+      if (!error.retryable) break;
+    }
+  }
+  throw lastError;
+}
+
+const dialogueSchema = {
+  name: "museum_dialogue",
+  schema: {
+    type: "object",
+    properties: {
+      speaker: { type: "string" },
+      text: { type: "string" },
+      effect: { type: "string", enum: EFFECT_VOCABULARY }
+    },
+    required: ["speaker", "text", "effect"],
+    additionalProperties: false
+  },
+  validate(parsed) {
+    if (!parsed || typeof parsed !== "object") return "response was not an object";
+    if (typeof parsed.text !== "string" || !parsed.text.trim()) return "text was empty";
+    return describeInvalidEffect(parsed.effect);
+  }
+};
+
 function localDialogue({ question, companions = [], artwork }) {
   const speaker = companions[0]?.name || "MUSE";
   const work = artwork?.title ? `${artwork.title} by ${artwork.artist}` : "the work in front of us";
@@ -110,9 +207,15 @@ function localDialogue({ question, companions = [], artwork }) {
 async function handleDialogue(request, response) {
   const body = JSON.parse(await readBody(request) || "{}");
   if (!body.question || typeof body.question !== "string") return sendJson(response, 400, { error: "A question is required." });
-  const fallback = localDialogue(body);
-  const apiKey = LLM_API_KEY;
-  if (!apiKey) return sendJson(response, 200, fallback);
+  // Deliberate, documented exception to the honesty rule: running with no key configured is an
+  // opt-in offline mode, not a disguised failure. It is labelled as such on the wire.
+  if (!LLM_API_KEY) {
+    return sendJson(response, 200, {
+      ...localDialogue(body),
+      fallback: true,
+      warning: "LOCAL FALLBACK — no API key configured"
+    });
+  }
 
   const companions = Array.isArray(body.companions) ? body.companions.slice(0, 3).map(item => String(item.name || "")).filter(Boolean) : [];
   const artwork = body.artwork || {};
@@ -123,39 +226,22 @@ async function handleDialogue(request, response) {
   ].join("\n");
 
   try {
-    const openaiResponse = await fetch(`${LLM_BASE_URL}/v1/responses`, {
-      method: "POST",
-      headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
-      body: JSON.stringify({
-        model: LLM_MODEL,
-        store: false,
-        instructions: "You orchestrate a live museum walk. Speak through exactly one of the available historical companions as an explicitly interpretive AI perspective, never as an authentic quotation, endorsement, or impersonation. Ground the answer in the artwork named in the context. Be vivid, conversational, and under 55 words. End with a perceptive question only when it genuinely advances the visitor's looking. Choose one visual effect from mist, fracture, garden, network, or light.",
-        input: prompt,
-        text: {
-          format: {
-            type: "json_schema",
-            name: "museum_dialogue",
-            strict: true,
-            schema: {
-              type: "object",
-              properties: {
-                speaker: { type: "string" },
-                text: { type: "string" },
-                effect: { type: "string", enum: ["mist", "fracture", "garden", "network", "light"] }
-              },
-              required: ["speaker", "text", "effect"],
-              additionalProperties: false
-            }
-          }
-        }
-      })
+    const parsed = await callLLM({
+      instructions:
+        "You orchestrate a live museum walk. Speak through exactly one of the available historical companions as an explicitly interpretive AI perspective, never as an authentic quotation, endorsement, or impersonation. Ground the answer in the artwork named in the context. Be vivid, conversational, and under 55 words. End with a perceptive question only when it genuinely advances the visitor's looking. Respond in English. " +
+        `Choose one visual effect from ${EFFECT_VOCABULARY.join(", ")}.`,
+      input: prompt,
+      schema: dialogueSchema
     });
-    if (!openaiResponse.ok) throw new Error(`OpenAI returned ${openaiResponse.status}`);
-    const payload = await openaiResponse.json();
-    const parsed = JSON.parse(extractResponseText(payload));
     sendJson(response, 200, { ...parsed, live: true, model: LLM_MODEL });
   } catch (error) {
-    sendJson(response, 200, { ...fallback, warning: error.message });
+    // No canned prose behind a 200. A failure must be visible to the client and to stderr.
+    console.error(`[dialogue] failed after retries: ${error.message} (question chars=${body.question.length}, companions=${companions.length})`);
+    sendJson(response, 502, {
+      error: "The live dialogue model could not be reached.",
+      warning: error.message,
+      live: false
+    });
   }
 }
 

@@ -418,7 +418,13 @@ async function initMuseumExperience() {
     }),
     onState: updateVoiceState,
     onUserText: text => appendConversation("YOU", text),
-    onReply: reply => appendConversation(reply.speaker || "MUSE", reply.text, reply.live)
+    onReply: reply => {
+      if (reply.text) appendConversation(reply.speaker || "MUSE", reply.text, reply.live);
+      // The server has always returned `warning`/`error` and nobody read them. A failed or
+      // fallback turn is now stated on screen instead of passing as an ordinary reply.
+      const notice = reply.error || reply.warning;
+      if (notice) appendConversation("SYSTEM", notice);
+    }
   });
 
   const collectionStatus = document.querySelector("#collectionStatus");
