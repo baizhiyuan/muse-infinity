@@ -6,6 +6,8 @@ MUSE∞ is a browser-based cultural experience where conversation changes the wo
 
 This repository contains a full-stack engineering spike, a local Three.js walkable gallery, and the Phase 2 point-cloud architecture. It uses a deterministic local particle world, cached public-domain artworks, and curated dialogue as the lowest fallback, while exposing live Art Institute of Chicago Open Access, GPT-5.6 Responses, OpenAI Realtime, World Labs Marble, and Tripo integration points.
 
+For the latest product direction and engineer-facing build spec, read [LATEST_PRODUCT_SPEC.md](LATEST_PRODUCT_SPEC.md).
+
 ## Engineering spike result
 
 The spike proves one production-shaped path through the concept without making the judging journey depend on paid services: the browser enters a real Three.js gallery, loads open-access museum records through a server proxy, asks an artwork-aware GPT-5.6 dialogue route when configured, and falls back honestly when it is not. Separate server-only adapters cover OpenAI Realtime, World Labs Marble generation, and Tripo multiview/rigging tasks. Paid generation routes require `INTEGRATION_ADMIN_TOKEN`; the static server exposes only the runtime files needed by the browser and blocks `.env`, repository metadata, server code, tests, and project documents.
