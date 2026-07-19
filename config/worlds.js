@@ -201,11 +201,12 @@ export const WORLDS = {
     render: "splat",
     worldScale: 1.7, // open worlds tuned like the finale ones (feedback #11): world grand, people human-scale
     metric: { scale: 1.7981, ty: 1.1657 },
-    // Spawn picked for OPENNESS, not vertex density (dense cells = shrubbery = the occlusion
-    // the user complained about): (22,46) sits on the walkable ~3m terrace inside a run of
-    // cells with ZERO tall geometry around ((20,40)->(28,60)), and yaw PI faces down that open
-    // corridor. The map's geometric centre itself is a no-ground water strip.
-    profile: { spawn: { x: 22.0, z: 46.0 }, groundY: 3.0, bounds: { minX: -75.29, maxX: 68.24, minZ: 1.12, maxZ: 82.68 }, yaw: Math.PI, cameraFar: 400 },
+    // Spawn picked for SHARPNESS (user: start where the splat is clear): decoding the spz
+    // shows detail massively concentrated at the capture origin (cell (0,0): 48k samples vs
+    // 14k next) — the old far-terrace spawn stood in the mushy far field. (4,4) is the
+    // solidest floor cell (67 verts, ground 2.8m) just inside walk bounds (minZ 1.12) next
+    // to that sharp core, and yaw 0 faces straight into it.
+    profile: { spawn: { x: 4.0, z: 4.0 }, groundY: 3.0, bounds: { minX: -75.29, maxX: 68.24, minZ: 1.12, maxZ: 82.68 }, yaw: 0, cameraFar: 400 },
     enclosed: false,
     recommended: false,
   },
