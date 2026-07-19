@@ -7,7 +7,7 @@ import { museumArtworks, salonParticipants } from "./config/museumAssets.js";
 import { Museum3D } from "./lib/museum3d.js";
 import { loadOpenAccessArtworks } from "./services/museumCollections.js";
 import { VoiceConversation } from "./services/voiceConversation.js";
-import { getWorld, listWorlds, DEFAULT_WORLD_KEY } from "./config/worlds.js";
+import { getWorld, listWorlds, DEFAULT_WORLD_KEY, PHILOSOPHY_WORLDS, PHILOSOPHY_QUERIES } from "./config/worlds.js";
 
 const canvas = document.querySelector("#world");
 const ctx = canvas.getContext("2d", { alpha: false });
@@ -292,9 +292,19 @@ function transformationView() {
   return `<section class="scene transformation"><p class="eyebrow">08 / YOUR ANSWER HAS ENTERED THE WORLD</p><div class="transformation-mark"></div><h1>The museum is<br>rewriting itself.</h1><p class="lede transformation-copy" id="transformationCopy">Sound falls away. Your chosen idea enters the salon ring.</p></section>`;
 }
 
-function finalWorldData() {
+// The two philosophy axes the visitor leaned into, sorted and joined. This single key drives
+// the manifesto title, the world they walk into, and the collection hung on its walls.
+function philosophyKey() {
   const ranking = Object.entries(state.philosophy).sort((a,b)=>b[1]-a[1]).map(([key])=>key);
-  const top = ranking.slice(0,2).sort().join("+");
+  return ranking.slice(0,2).sort().join("+");
+}
+
+function finalWorldKey() {
+  return PHILOSOPHY_WORLDS[philosophyKey()] || DEFAULT_WORLD_KEY;
+}
+
+function finalWorldData() {
+  const top = philosophyKey();
   const endings = {
     "emotion+perception": ["The Garden of Living Light", "You believe art should make inner experience visible by teaching perception to move more slowly."],
     "invention+perception": ["The Museum of Multiple Realities", "You believe art should free perception from a single reality and give form to what does not yet exist."],
@@ -306,7 +316,7 @@ function finalWorldData() {
 function manifestoView() {
   const [title,copy] = finalWorldData();
   state.finalWorld = title;
-  return `<section class="scene manifesto"><div class="manifesto-card"><p class="eyebrow">YOUR IMPOSSIBLE WORLD</p><h2>${title}</h2><p class="manifesto-copy">${copy}</p><div class="score-row">${Object.entries(state.philosophy).map(([key,value])=>`<span>${key.toUpperCase()}<b>${String(value).padStart(2,"0")}</b></span>`).join("")}</div><div class="action-row" style="justify-content:center"><button class="primary-action" data-action="reset">ENTER AGAIN</button></div></div></section>`;
+  return `<section class="scene manifesto"><div class="manifesto-card"><p class="eyebrow">YOUR IMPOSSIBLE WORLD</p><h2>${title}</h2><p class="manifesto-copy">${copy}</p><div class="score-row">${Object.entries(state.philosophy).map(([key,value])=>`<span>${key.toUpperCase()}<b>${String(value).padStart(2,"0")}</b></span>`).join("")}</div><div class="action-row" style="justify-content:center"><button class="primary-action" data-action="enter-final-world">ENTER YOUR WORLD <span>→</span></button><button class="ghost-action" data-action="reset">ENTER AGAIN</button></div></div></section>`;
 }
 
 function bindActions() {
@@ -352,6 +362,9 @@ function act(action) {
     enter: () => setStage("museum_void"),
     "discover-worlds": () => setStage("world_selection"),
     "enter-gallery": () => setStage("world_exploration"),
+    // The finale: the philosophy the visitor argued for picks the world, and re-entering
+    // world_exploration now rebuilds it with philosophy scored and state.finalWorld set.
+    "enter-final-world": () => { state.selectedPortal = finalWorldKey(); setStage("world_exploration"); },
     "close-inspector": () => document.querySelector("#artworkInspector")?.classList.remove("visible"),
     "voice-listen": () => voiceConversation?.listen(),
     summon: () => setStage("summoning"),
@@ -372,9 +385,12 @@ function selectedCompanionRecords() {
 // world key), with optional URL overrides — ?world=<key> and ?render=mesh|splat — for A/B.
 function resolveSelectedWorld() {
   const params = new URLSearchParams(location.search);
-  const base = getWorld(params.get("world") || state.selectedPortal || DEFAULT_WORLD_KEY);
+  let world = getWorld(params.get("world") || state.selectedPortal || DEFAULT_WORLD_KEY);
   const render = params.get("render");
-  return render === "mesh" || render === "splat" ? { ...base, render } : base;
+  if (render === "mesh" || render === "splat") world = { ...world, render };
+  const wscale = parseFloat(params.get("wscale")); // live immersion-scale tuning knob
+  if (Number.isFinite(wscale) && wscale > 0) world = { ...world, worldScale: wscale };
+  return world;
 }
 
 async function initMuseumExperience() {
@@ -406,7 +422,9 @@ async function initMuseumExperience() {
 
   const collectionStatus = document.querySelector("#collectionStatus");
   try {
-    const liveArtworks = await loadOpenAccessArtworks("Claude Monet");
+    // Pre-choice this resolves to the default ending's artist; after the manifesto the
+    // visitor's own philosophy picks the collection that hangs in their world.
+    const liveArtworks = await loadOpenAccessArtworks(PHILOSOPHY_QUERIES[philosophyKey()] || "Claude Monet");
     if (state.stage !== "world_exploration" || !liveArtworks.length) return;
     state.galleryArtworks = liveArtworks;
     museum3D?.buildGallery(liveArtworks);

@@ -27,6 +27,7 @@ export const WORLDS = {
     splatUrl: `${A}/yellow-polka-dot-infinity-room.spz`,
     colliderUrl: `${A}/yellow-polka-dot-infinity-room-collider.glb`,
     render: "mesh",
+    worldScale: 3, // scale the whole world up so a 1.75 m visitor feels small/immersed (tune via ?wscale=)
     metric: { scale: 0.969, ty: 0.5906 },
     profile: { spawn: { x: 0.04, z: 0.25 }, groundY: 0.0, bounds: { minX: -4.43, maxX: 8.48, minZ: -2.68, maxZ: 5.45 }, yaw: -Math.PI / 2, cameraFar: 200 },
     enclosed: true,
@@ -165,3 +166,24 @@ export const DEFAULT_WORLD_KEY = "yellow-polka-dot-infinity-room";
 
 export const getWorld = (key) => WORLDS[key] || WORLDS[DEFAULT_WORLD_KEY];
 export const listWorlds = () => WORLD_ORDER.map((k) => WORLDS[k]).filter(Boolean);
+
+// ---- The visitor's philosophy decides the world they finally walk into ----------------
+//
+// Keyed by the top-two philosophy axes (sorted + joined) — the SAME key app.js already
+// ranks on to title the manifesto, so world, title and collection stay in lockstep.
+// Every target is `enclosed: true`: an open world would strand the visitor on a plain.
+
+export const PHILOSOPHY_WORLDS = {
+  "emotion+perception": "elegant-floral-palace-interior",     // The Garden of Living Light
+  "invention+perception": "yellow-polka-dot-infinity-room",   // The Museum of Multiple Realities
+  "emotion+invention": "van-gogh-inspired-gallery-interior",  // The Infinite Interior
+};
+
+// Art Institute query per ending. These MUST be artist names: the open-access endpoint
+// filters on is_public_domain, and abstract theme phrases return zero rows — on an empty
+// result app.js keeps the local placeholders, so a bad query silently costs us the payoff.
+export const PHILOSOPHY_QUERIES = {
+  "emotion+perception": "Claude Monet",
+  "invention+perception": "Wassily Kandinsky",
+  "emotion+invention": "Vincent van Gogh",
+};
