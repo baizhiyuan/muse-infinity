@@ -8,3 +8,11 @@ coverage/
 *.log
 assets/generated/turnarounds/local-ip-only/
 tmp/
+.omc/
+.omx/
+splat-test.html
+companion-test.html
+assets/worlds/
+assets/characters/
+assets/*.spz
+assets/*.glb

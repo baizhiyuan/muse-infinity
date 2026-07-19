@@ -74,7 +74,7 @@ const state = {
   transformationStart: 0,
   transformationChoice: null,
   memories: new Set(),
-  selectedCompanions: new Set(["monet", "morisot"]),
+  selectedCompanions: new Set(["monet", "van_gogh", "socrates"]),
   galleryArtworks: [...museumArtworks],
   focusedArtwork: museumArtworks[0]
 };
@@ -365,7 +365,8 @@ async function initMuseumExperience() {
     artworks: state.galleryArtworks,
     companions: selectedCompanionRecords(),
     onArtworkFocus: focusArtwork,
-    onReady: () => container.classList.add("ready")
+    onReady: () => container.classList.add("ready"),
+    worldSplatUrl: "/assets/worlds/monet.spz"
   });
   museum3D.mount();
   voiceConversation = new VoiceConversation({
@@ -796,7 +797,7 @@ addEventListener("keydown",event=>{
 document.querySelectorAll("[data-action='reset']").forEach(button=>button.addEventListener("click",reset));
 document.querySelector("[data-action='toggle-audio']").addEventListener("click",toggleAudio);
 document.querySelector("[data-action='toggle-performance']").addEventListener("click",togglePerformance);
-syncParticlePool(); resize(); updatePerformanceLabel(); setStage("threshold"); requestAnimationFrame(renderWorld);
+syncParticlePool(); resize(); updatePerformanceLabel(); const __start = new URLSearchParams(location.search).get("stage"); setStage(STAGES.includes(__start) ? __start : "threshold"); requestAnimationFrame(renderWorld);
 
 if (state.demoMode) {
   document.querySelector("#discovery").textContent = "DEMO MODE / 90 SEC PATH";

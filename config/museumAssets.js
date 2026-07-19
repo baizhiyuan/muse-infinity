@@ -40,7 +40,7 @@ export const salonParticipants = [
     portrait: "assets/museum/portrait-claude-monet.jpg",
     turnaround: "assets/generated/turnarounds/claude-monet-turnaround-v1.png",
     views: ["front", "left", "back", "right"].map(view => `assets/generated/turnarounds/views/claude-monet/${view}.png`),
-    model: null,
+    model: "assets/characters/monet.glb",
     sourceUrl: "https://commons.wikimedia.org/wiki/File:Autoportret_Claude_Monet.jpg",
     rights: "Public domain self-portrait reproduction via Wikimedia Commons",
     turnaroundRights: "AI-generated interpretive multi-view reference based on the listed public-domain source; side and back views are not authentic historical records."
@@ -53,7 +53,7 @@ export const salonParticipants = [
     portrait: "assets/museum/portrait-pablo-picasso.jpg",
     turnaround: "assets/generated/turnarounds/pablo-picasso-turnaround-v1.png",
     views: ["front", "left", "back", "right"].map(view => `assets/generated/turnarounds/views/pablo-picasso/${view}.png`),
-    model: null,
+    model: "assets/characters/picasso.glb",
     sourceUrl: "https://commons.wikimedia.org/wiki/File:Portrait_de_Picasso,_1908.jpg",
     rights: "Public-domain 1908 portrait photograph by an anonymous photographer via Wikimedia Commons",
     turnaroundRights: "AI-generated interpretive multi-view reference based on the listed public-domain source; side and back views are not authentic historical records."
@@ -79,7 +79,7 @@ export const salonParticipants = [
     portrait: "assets/museum/portrait-vincent-van-gogh.jpg",
     turnaround: "assets/generated/turnarounds/vincent-van-gogh-turnaround-v1.png",
     views: ["front", "left", "back", "right"].map(view => `assets/generated/turnarounds/views/vincent-van-gogh/${view}.png`),
-    model: null,
+    model: "assets/characters/van-gogh.glb",
     sourceUrl: "https://commons.wikimedia.org/wiki/File:Van_Gogh_self_portrait_1889.jpg",
     rights: "Public domain self-portrait reproduction via Wikimedia Commons",
     turnaroundRights: "AI-generated interpretive multi-view reference based on the listed public-domain source; side and back views are not authentic historical records."
@@ -92,7 +92,7 @@ export const salonParticipants = [
     portrait: "assets/museum/portrait-frida-kahlo.jpg",
     turnaround: "assets/generated/turnarounds/frida-kahlo-turnaround-v1.png",
     views: ["front", "left", "back", "right"].map(view => `assets/generated/turnarounds/views/frida-kahlo/${view}.png`),
-    model: null,
+    model: "assets/characters/frida.glb",
     sourceUrl: "https://commons.wikimedia.org/wiki/File:Frida_Kahlo,_by_Guillermo_Kahlo.jpg",
     rights: "Public-domain portrait photograph by Guillermo Kahlo via Wikimedia Commons",
     turnaroundRights: "AI-generated interpretive multi-view reference based on the listed public-domain source; side and back views are not authentic historical records."
@@ -105,7 +105,7 @@ export const salonParticipants = [
     portrait: "assets/museum/portrait-socrates.jpg",
     turnaround: "assets/generated/turnarounds/socrates-bust-turnaround-v1.png",
     views: ["front", "left", "back", "right"].map(view => `assets/generated/turnarounds/views/socrates/${view}.png`),
-    model: null,
+    model: "assets/characters/socrates.glb",
     sourceUrl: "https://commons.wikimedia.org/wiki/File:Bust_Socrates_Musei_Capitolini_MC1163.jpg",
     rights: "Public-domain photograph of a classical Socrates bust via Wikimedia Commons; not a true-life portrait",
     turnaroundRights: "AI-generated multi-view interpretation of the documented marble bust; it does not claim to reconstruct Socrates' true appearance."

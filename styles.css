@@ -89,14 +89,14 @@ h2 { font-size: clamp(36px, 5vw, 72px); line-height: 1.02; max-width: 900px; }
 
 .companion-selection { display:grid; grid-template-columns:.78fr 1.22fr; gap:5vw; align-items:end; }
 .companion-intro { padding-bottom:68px; text-shadow:0 2px 30px rgba(0,0,0,.72); }
-.companion-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
-.companion-card { position:relative; min-height:390px; padding:22px; overflow:hidden; border:1px solid rgba(255,255,255,.22); background:linear-gradient(180deg,transparent 38%,rgba(20,14,16,.86)),var(--portrait) center/cover; text-align:left; cursor:pointer; transition:.45s cubic-bezier(.2,.8,.2,1); box-shadow:0 24px 70px rgba(26,15,17,.24); }
+.companion-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; max-height:56vh; overflow-y:auto; overflow-x:hidden; padding-right:6px; align-content:start; }
+.companion-card { position:relative; min-height:250px; padding:22px; overflow:hidden; border:1px solid rgba(255,255,255,.22); background:linear-gradient(180deg,transparent 38%,rgba(20,14,16,.86)),var(--portrait) center/cover; text-align:left; cursor:pointer; transition:.45s cubic-bezier(.2,.8,.2,1); box-shadow:0 24px 70px rgba(26,15,17,.24); }
 .companion-card::after { content:""; position:absolute; inset:0; border:1px solid transparent; transition:.35s; }
 .companion-card:hover { transform:translateY(-8px); filter:saturate(1.08); }
 .companion-card.selected { transform:translateY(-12px); border-color:rgba(255,244,215,.8); box-shadow:0 30px 80px rgba(59,30,38,.34),0 0 0 4px rgba(255,244,215,.09); }
 .companion-card.selected::after { border-color:rgba(255,244,215,.5); inset:8px; }
 .companion-card small,.companion-card b,.companion-card em { position:relative; z-index:1; display:block; }
-.companion-card small { margin-top:260px; color:rgba(255,255,255,.62); font-size:8px; letter-spacing:.18em; }
+.companion-card small { margin-top:132px; color:rgba(255,255,255,.62); font-size:8px; letter-spacing:.18em; }
 .companion-card b { margin-top:7px; font:22px/1.05 "Gilda Display",serif; }
 .companion-card em { margin-top:8px; color:rgba(255,255,255,.5); font-size:8px; line-height:1.4; font-style:normal; }
 .model-readiness { position:relative; z-index:1; display:inline-flex; align-items:center; gap:6px; margin-top:12px; padding:5px 8px; border:1px solid rgba(236,222,184,.42); border-radius:999px; color:rgba(255,244,215,.86); background:rgba(22,14,17,.3); font-size:7px; letter-spacing:.12em; }
