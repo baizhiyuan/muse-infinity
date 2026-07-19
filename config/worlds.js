@@ -46,7 +46,7 @@ export const WORLDS = {
     splatUrl: `${A}/yellow-polka-dot-infinity-room.spz`,
     colliderUrl: `${A}/yellow-polka-dot-infinity-room-collider.glb`,
     render: "mesh",
-    worldScale: 3, // scale the whole world up so a 1.75 m visitor feels small/immersed (tune via ?wscale=)
+    worldScale: 2, // feedback #11: 3 overshot - figures receded into gold blobs; 2 keeps the room grand while companions stay recognisable
     metric: { scale: 0.969, ty: 0.5906 },
     profile: { spawn: { x: 0.04, z: 0.25 }, groundY: 0.0, bounds: { minX: -4.43, maxX: 8.48, minZ: -2.68, maxZ: 5.45 }, yaw: -Math.PI / 2, cameraFar: 200 },
     enclosed: true,
@@ -61,6 +61,7 @@ export const WORLDS = {
     splatUrl: `${A}/van-gogh-inspired-gallery-interior.spz`,
     colliderUrl: `${A}/van-gogh-inspired-gallery-interior-collider.glb`,
     render: "splat",
+    worldScale: 1.7, // feedback #11: at worldScale 1 companions towered over the frame; bright-gallery-hall is the proportion benchmark, this tunes toward it
     metric: { scale: 1.4984, ty: 1.366 },
     profile: { spawn: { x: 1.79, z: 0.3 }, groundY: 0.0, bounds: { minX: -2.47, maxX: 10.0, minZ: -14.62, maxZ: 13.73 }, yaw: 0, cameraFar: 200 },
     enclosed: true,
@@ -75,6 +76,7 @@ export const WORLDS = {
     splatUrl: `${A}/elegant-floral-palace-interior.spz`,
     colliderUrl: `${A}/elegant-floral-palace-interior-collider.glb`,
     render: "splat",
+    worldScale: 1.7, // feedback #11: at worldScale 1 companions towered over the frame; bright-gallery-hall is the proportion benchmark, this tunes toward it
     metric: { scale: 1.0516, ty: 0.6954 },
     profile: { spawn: { x: 1.16, z: 0.78 }, groundY: 0.2, bounds: { minX: -8.12, maxX: 12.73, minZ: -10.4, maxZ: 11.44 }, yaw: 0, cameraFar: 200 },
     enclosed: true,
@@ -89,6 +91,7 @@ export const WORLDS = {
     splatUrl: null,
     colliderUrl: `${A}/fantasy-realm-of-shimmering-spheres-collider.glb`,
     render: "mesh",
+    worldScale: 1.8, // feedback #11: at worldScale 1 companions towered over the frame; bright-gallery-hall is the proportion benchmark, this tunes toward it
     metric: { scale: 1.5061, ty: 1.1685 },
     profile: { spawn: { x: 0.12, z: 0.83 }, groundY: 0.5, bounds: { minX: -2.08, maxX: 2.08, minZ: -6.83, maxZ: 9.99 }, yaw: 0, cameraFar: 200 },
     enclosed: true,
@@ -170,6 +173,7 @@ export const WORLDS = {
 
 // Display order for the world-selection screen: enclosed / recommended first.
 export const WORLD_ORDER = [
+  "bright-gallery-hall",
   "yellow-polka-dot-infinity-room",
   "van-gogh-inspired-gallery-interior",
   "elegant-floral-palace-interior",
@@ -181,9 +185,10 @@ export const WORLD_ORDER = [
   "sunlit-palace-gardens",
 ];
 
-// Fantasy shimmering-spheres tunnel is our clearest (mesh) world and the one where companions
-// read as recognisable full-body figures (the gold dot room dyes them into blobs). Benchmark
-// vs official Marble worlds says visual quality is the gap, so the demo defaults to it.
+// Bright Gallery Hall is our benchmark-grade bright museum hall: API-generated, with a clear
+// splat, flat walls and correctly positioned rawMarble collider/splat transform. Feedback #11
+// confirmed its proportions are the ones the other enclosed worlds are being tuned toward, so
+// the demo defaults to it.
 export const DEFAULT_WORLD_KEY = "bright-gallery-hall";
 
 export const getWorld = (key) => WORLDS[key] || WORLDS[DEFAULT_WORLD_KEY];
