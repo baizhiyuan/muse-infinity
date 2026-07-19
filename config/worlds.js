@@ -18,6 +18,25 @@
 const A = "/assets/worlds";
 
 export const WORLDS = {
+  // Generated via the Marble API (world_id 705b7748…) — a bright, enclosed, photorealistic
+  // museum gallery hall with FLAT walls. Output is a raw .spz + trimesh collider (no baked
+  // matrix), so we apply the semantics_metadata transform by hand: scale·Rx(π)+ty on BOTH
+  // the splat and the collider (rawMarble). profile decoded post-transform.
+  "bright-gallery-hall": {
+    key: "bright-gallery-hall",
+    name: "Bright Gallery Hall",
+    displayName: "明亮画廊大厅",
+    blurb: "阳光穹顶下的白墙画廊长廊 —— 大理石地面、雕像、天光,一座真正的美术馆内部。",
+    meshUrl: null,
+    splatUrl: `${A}/bright-gallery.spz`,
+    colliderUrl: `${A}/bright-gallery-collider.glb`,
+    render: "splat",
+    rawMarble: true,
+    metric: { scale: 0.80177665, ty: 0.5 },
+    profile: { spawn: { x: 0, z: -1.14 }, groundY: 0, bounds: { minX: -2.42, maxX: 2.36, minZ: -26.84, maxZ: 24.55 }, yaw: 0, cameraFar: 300 },
+    enclosed: true,
+    recommended: true,
+  },
   "yellow-polka-dot-infinity-room": {
     key: "yellow-polka-dot-infinity-room",
     name: "Yellow Polka Dot Infinity Room",
@@ -165,7 +184,7 @@ export const WORLD_ORDER = [
 // Fantasy shimmering-spheres tunnel is our clearest (mesh) world and the one where companions
 // read as recognisable full-body figures (the gold dot room dyes them into blobs). Benchmark
 // vs official Marble worlds says visual quality is the gap, so the demo defaults to it.
-export const DEFAULT_WORLD_KEY = "fantasy-realm-of-shimmering-spheres";
+export const DEFAULT_WORLD_KEY = "bright-gallery-hall";
 
 export const getWorld = (key) => WORLDS[key] || WORLDS[DEFAULT_WORLD_KEY];
 export const listWorlds = () => WORLD_ORDER.map((k) => WORLDS[k]).filter(Boolean);
@@ -178,7 +197,7 @@ export const listWorlds = () => WORLD_ORDER.map((k) => WORLDS[k]).filter(Boolean
 
 export const PHILOSOPHY_WORLDS = {
   "emotion+perception": "elegant-floral-palace-interior",     // The Garden of Living Light
-  "invention+perception": "fantasy-realm-of-shimmering-spheres", // The Museum of Multiple Realities (clearest mesh world)
+  "invention+perception": "bright-gallery-hall",              // The Museum of Multiple Realities (generated gallery)
   "emotion+invention": "van-gogh-inspired-gallery-interior",  // The Infinite Interior
 };
 
