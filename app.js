@@ -208,7 +208,7 @@ function museumVoidView() {
 
 function worldSelectionView() {
   const worlds = [
-    ["light","WORLD OF LIGHT","MONET","#79b7b0",false,museumArtworks[0]], ["fracture","WORLD OF FRACTURE","PICASSO","#a65a58",true,museumArtworks[2]],
+    ["light","WORLD OF LIGHT","MONET","#79b7b0",false,museumArtworks[0]], ["fracture","WORLD OF FRACTURE","PICASSO","#a65a58",true,null],
     ["infinity","WORLD OF THE UNSEEN","HILMA","#a786b1",true,null], ["emotion","WORLD OF EMOTION","VAN GOGH","#c69f4e",true,museumArtworks[1]],
     ["identity","WORLD OF MEMORY","MORISOT","#c89ba1",true,null]
   ];
