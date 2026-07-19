@@ -419,7 +419,9 @@ async function initMuseumExperience() {
     onState: updateVoiceState,
     onUserText: text => appendConversation("YOU", text),
     onReply: reply => {
-      if (reply.text) appendConversation(reply.speaker || "MUSE", reply.text, reply.live);
+      // One question now returns three parallel readings. Rendering only `reply.text` would print
+      // the literal string "undefined" under the new contract.
+      for (const perspective of reply.perspectives || []) appendPerspective(perspective, reply.live);
       // The server has always returned `warning`/`error` and nobody read them. A failed or
       // fallback turn is now stated on screen instead of passing as an ordinary reply.
       const notice = reply.error || reply.warning;
@@ -453,6 +455,30 @@ function focusArtwork(artwork) {
   if (title) title.textContent = artwork.title;
   if (source) source.href = artwork.sourceUrl;
   inspector?.classList.add("visible");
+}
+
+const AI_INTERPRETATION_DISCLAIMER = "AI INTERPRETATION — NOT AN AUTHENTIC QUOTATION";
+
+/**
+ * Renders one master's reading. Each perspective carries its own disclaimer rather than one
+ * shared caption for the group: the compliance claim is about each attributed voice, so it has
+ * to travel with each voice.
+ */
+function appendPerspective(perspective, live = false) {
+  const log = document.querySelector("#conversationLog");
+  if (!log || !perspective?.text) return;
+  const paragraph = document.createElement("p");
+  paragraph.className = "perspective";
+  const label = document.createElement("b");
+  label.textContent = String(perspective.speaker || "MUSE").toUpperCase();
+  const disclaimer = document.createElement("small");
+  disclaimer.className = "ai-disclaimer";
+  disclaimer.dataset.disclaimer = "true";
+  disclaimer.textContent = AI_INTERPRETATION_DISCLAIMER;
+  paragraph.append(label, document.createTextNode(` ${perspective.text} `), disclaimer);
+  if (live) paragraph.dataset.live = "true";
+  log.append(paragraph);
+  log.scrollTop = log.scrollHeight;
 }
 
 function appendConversation(speaker, text, live = false) {

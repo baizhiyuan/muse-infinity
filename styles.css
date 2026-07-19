@@ -145,6 +145,8 @@ h2 { font-size: clamp(36px, 5vw, 72px); line-height: 1.02; max-width: 900px; }
 .conversation-log p:last-child { margin-bottom:0; }
 .conversation-log b { color:#986376; font:7px "DM Sans",sans-serif; letter-spacing:.15em; }
 .conversation-log p[data-live="true"] { border-left:2px solid #78a087; padding-left:9px; }
+.conversation-log p.perspective { margin-bottom:12px; }
+.conversation-log .ai-disclaimer { display:block; margin-top:4px; font:7px "DM Sans",sans-serif; letter-spacing:.15em; color:#8a654a; opacity:.72; }
 .conversation-form { display:flex; border-top:1px solid rgba(73,58,45,.12); }
 .conversation-form input { width:100%; min-width:0; border:0; outline:0; background:transparent; color:#342d28; padding:12px 14px; font-size:11px; }
 .conversation-form button { border:0; border-left:1px solid rgba(73,58,45,.12); background:transparent; color:#735d4b; padding:0 14px; font-size:7px; letter-spacing:.14em; cursor:pointer; }

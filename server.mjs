@@ -175,72 +175,223 @@ async function callLLM({ instructions, input, schema }) {
   throw lastError;
 }
 
-const dialogueSchema = {
-  name: "museum_dialogue",
+/** One request returns this many parallel, non-interacting perspectives. */
+const PERSPECTIVE_COUNT = 3;
+
+/** Used to top up the roster when the visitor invited fewer than three companions. */
+const DEFAULT_MASTER_IDS = ["monet", "van_gogh", "socrates"];
+
+// The strict json_schema subset accepted by OpenAI-compatible proxies has no dependable
+// array-length keyword. `minItems`/`maxItems` are not rejected by this proxy, but nothing
+// proves they are ENFORCED, so relying on them would be faith, not a guarantee. The count is
+// stated in prose and asserted below: that DETECTS a wrong count, it does not PREVENT one.
+// A detected mismatch is retryable, which is why the weaker guarantee is survivable.
+const perspectiveItemSchema = {
+  type: "object",
+  properties: {
+    speakerId: { type: "string" },
+    speaker: { type: "string" },
+    text: { type: "string" },
+    effect: { type: "string", enum: EFFECT_VOCABULARY }
+  },
+  required: ["speakerId", "speaker", "text", "effect"],
+  additionalProperties: false
+};
+
+function describeInvalidPerspective(item) {
+  if (!item || typeof item !== "object") return "perspective was not an object";
+  if (typeof item.speakerId !== "string" || !item.speakerId.trim()) return "speakerId was empty";
+  if (typeof item.speaker !== "string" || !item.speaker.trim()) return "speaker was empty";
+  if (typeof item.text !== "string" || !item.text.trim()) return "text was empty";
+  return describeInvalidEffect(item.effect);
+}
+
+/** Arm A: one call returning all three perspectives. */
+const perspectivesSchema = {
+  name: "museum_perspectives",
   schema: {
     type: "object",
-    properties: {
-      speaker: { type: "string" },
-      text: { type: "string" },
-      effect: { type: "string", enum: EFFECT_VOCABULARY }
-    },
-    required: ["speaker", "text", "effect"],
+    properties: { perspectives: { type: "array", items: perspectiveItemSchema } },
+    required: ["perspectives"],
     additionalProperties: false
   },
   validate(parsed) {
     if (!parsed || typeof parsed !== "object") return "response was not an object";
-    if (typeof parsed.text !== "string" || !parsed.text.trim()) return "text was empty";
-    return describeInvalidEffect(parsed.effect);
+    if (!Array.isArray(parsed.perspectives)) return "perspectives was not an array";
+    if (parsed.perspectives.length !== PERSPECTIVE_COUNT) {
+      return `expected ${PERSPECTIVE_COUNT} perspectives, received ${parsed.perspectives.length}`;
+    }
+    for (const item of parsed.perspectives) {
+      const problem = describeInvalidPerspective(item);
+      if (problem) return problem;
+    }
+    const ids = new Set(parsed.perspectives.map(item => item.speakerId.trim().toLowerCase()));
+    if (ids.size !== PERSPECTIVE_COUNT) return "two perspectives claimed the same speakerId";
+    return null;
   }
 };
 
-function localDialogue({ question, companions = [], artwork }) {
-  const speaker = companions[0]?.name || "MUSE";
-  const work = artwork?.title ? `${artwork.title} by ${artwork.artist}` : "the work in front of us";
-  const lower = String(question || "").toLowerCase();
-  let text = `Look again at ${work}. Before deciding what it means, notice which detail your first interpretation ignored. What changed when you gave that detail your attention?`;
-  if (lower.includes("feel") || lower.includes("emotion")) text = `${work} does not contain a single emotion; it stages a meeting between the light in the image and the memory you brought into the room.`;
-  if (lower.includes("ai") || lower.includes("machine")) text = `A machine can multiply interpretations of ${work}, but the human responsibility is choosing which interpretation deserves to change the room.`;
-  return { speaker, text, effect: "mist", live: false, model: "local-curated-fallback" };
+/** Arm B: one call per master, merged into the same response shape. */
+const singlePerspectiveSchema = {
+  name: "museum_perspective",
+  schema: perspectiveItemSchema,
+  validate: describeInvalidPerspective
+};
+
+/**
+ * Resolves the visitor's invited companions to authored masters, topping up to exactly three.
+ * A participant with no `lens` is skipped: three voices without three lenses are one voice
+ * three times, which is the failure this whole feature exists to avoid.
+ */
+function selectMasters(companions) {
+  const chosen = [];
+  const seen = new Set();
+  const take = participant => {
+    if (!participant?.lens || seen.has(participant.id) || chosen.length >= PERSPECTIVE_COUNT) return;
+    seen.add(participant.id);
+    chosen.push(participant);
+  };
+  for (const item of Array.isArray(companions) ? companions : []) {
+    take(salonParticipants.find(participant => participant.id === item?.id));
+  }
+  for (const id of DEFAULT_MASTER_IDS) take(salonParticipants.find(participant => participant.id === id));
+  for (const participant of salonParticipants) take(participant);
+  return chosen;
 }
 
-async function handleDialogue(request, response) {
+function describeArtwork(artwork = {}) {
+  return `Artwork in focus: ${artwork.title || "unknown"} by ${artwork.artist || "unknown"} (${artwork.date || "date unknown"})`;
+}
+
+/** The master's authored lens, verbatim. Divergence is data, not a hope placed in one prompt. */
+function describeMaster(master, index) {
+  const { lens } = master;
+  return [
+    `--- PERSPECTIVE ${index + 1} ---`,
+    `speakerId (copy verbatim): ${master.id}`,
+    `speaker (copy verbatim): ${master.fullName}`,
+    `Voice instruction, obey exactly: ${lens.systemPrompt}`,
+    `Lens: ${lens.lens}`,
+    `Attend only to: ${lens.attention.join("; ")}`,
+    `Questioning style: ${lens.questionStyle}`,
+    `Draw on this vocabulary: ${lens.vocabulary.join(", ")}`,
+    `Never use these words: ${lens.forbidden.join(", ")}`
+  ].join("\n");
+}
+
+const PERSPECTIVE_RULES =
+  "Every perspective is an explicitly interpretive AI reading — never an authentic quotation, " +
+  "never an endorsement, never impersonation of the real historical person. Ground every " +
+  "perspective in the artwork named in the context. Reply in English, under 55 words each. " +
+  `Choose one visual effect per perspective from ${EFFECT_VOCABULARY.join(", ")}.`;
+
+const PARALLEL_INSTRUCTIONS =
+  `You compose a museum wall of parallel readings. Return exactly ${PERSPECTIVE_COUNT} perspectives — ` +
+  "one for each master described in the context, in the order given, and no others. The masters do " +
+  "not address, answer, or acknowledge one another; each looks at the same artwork alone. Obey each " +
+  "master's own voice instruction, vocabulary, and forbidden words. " + PERSPECTIVE_RULES;
+
+function buildPerspectiveInput({ question, masters, artwork }) {
+  return [
+    `Visitor question: ${question.slice(0, 1200)}`,
+    describeArtwork(artwork),
+    "",
+    ...masters.map(describeMaster)
+  ].join("\n");
+}
+
+/**
+ * Re-anchors each returned perspective to a real master. The model is told to copy the ids; when
+ * it does not, we map positionally rather than shipping a speaker the client cannot resolve.
+ */
+function reconcilePerspectives(perspectives, masters) {
+  return perspectives.map((item, index) => {
+    const claimed = String(item.speakerId || "").trim().toLowerCase();
+    const matched = masters.find(master => master.id === claimed);
+    if (!matched) console.error(`[dialogue] unknown speakerId "${item.speakerId}" mapped positionally to ${masters[index].id}`);
+    const master = matched || masters[index];
+    return { speakerId: master.id, speaker: master.fullName, text: item.text.trim(), effect: item.effect };
+  });
+}
+
+/** Arm A — one call, all three perspectives, one atomic success or failure. */
+async function fetchPerspectivesTogether({ question, masters, artwork }) {
+  const parsed = await callLLM({
+    instructions: PARALLEL_INSTRUCTIONS,
+    input: buildPerspectiveInput({ question, masters, artwork }),
+    schema: perspectivesSchema
+  });
+  return reconcilePerspectives(parsed.perspectives, masters);
+}
+
+/** Arm B — three concurrent calls, one per master, merged into the identical response shape. */
+async function fetchPerspectivesInParallel({ question, masters, artwork }) {
+  const parsed = await Promise.all(masters.map(master => callLLM({
+    instructions: `${master.lens.systemPrompt} ${PERSPECTIVE_RULES}`,
+    input: buildPerspectiveInput({ question, masters: [master], artwork }),
+    schema: singlePerspectiveSchema
+  })));
+  return reconcilePerspectives(parsed, masters);
+}
+
+/**
+ * No-key offline mode. Returns the same three-perspective shape so the client never has to know
+ * which mode produced it — but every entry is labelled, and none of it is model output.
+ */
+function localPerspectives({ question, masters, artwork }) {
+  const work = artwork?.title ? `${artwork.title} by ${artwork.artist}` : "the work in front of us";
+  const lower = String(question || "").toLowerCase();
+  const angle = lower.includes("feel") || lower.includes("emotion")
+    ? "what it asks you to feel"
+    : lower.includes("ai") || lower.includes("machine")
+      ? "what a machine can and cannot decide about it"
+      : "what your first glance left out";
+  return masters.map((master, index) => ({
+    speakerId: master.id,
+    speaker: master.fullName,
+    text: `Offline reading ${index + 1}: through a lens of ${master.lens.attention[0]}, ${work} rewards asking ${angle}.`,
+    effect: EFFECT_VOCABULARY[index % EFFECT_VOCABULARY.length]
+  }));
+}
+
+async function handleDialogue(request, response, url) {
   const body = JSON.parse(await readBody(request) || "{}");
   if (!body.question || typeof body.question !== "string") return sendJson(response, 400, { error: "A question is required." });
+
+  const masters = selectMasters(body.companions);
+  const artwork = body.artwork || {};
+
   // Deliberate, documented exception to the honesty rule: running with no key configured is an
   // opt-in offline mode, not a disguised failure. It is labelled as such on the wire.
   if (!LLM_API_KEY) {
     return sendJson(response, 200, {
-      ...localDialogue(body),
+      perspectives: localPerspectives({ question: body.question, masters, artwork }),
+      live: false,
+      model: "local-curated-fallback",
       fallback: true,
       warning: "LOCAL FALLBACK — no API key configured"
     });
   }
 
-  const companions = Array.isArray(body.companions) ? body.companions.slice(0, 3).map(item => String(item.name || "")).filter(Boolean) : [];
-  const artwork = body.artwork || {};
-  const prompt = [
-    `Visitor question: ${body.question.slice(0, 1200)}`,
-    `Companions available: ${companions.join(", ") || "MUSE curator"}`,
-    `Artwork in focus: ${artwork.title || "unknown"} by ${artwork.artist || "unknown"}, ${artwork.date || "date unknown"}`
-  ].join("\n");
+  // Bake-off dispatch. Both arms return the identical shape, so the client never branches on it.
+  // Without this the bake-off would run arm A twice and report the difference as noise.
+  const arm = url?.searchParams.get("arm") === "B" ? "B" : "A";
+  const fetchPerspectives = arm === "B" ? fetchPerspectivesInParallel : fetchPerspectivesTogether;
 
   try {
-    const parsed = await callLLM({
-      instructions:
-        "You orchestrate a live museum walk. Speak through exactly one of the available historical companions as an explicitly interpretive AI perspective, never as an authentic quotation, endorsement, or impersonation. Ground the answer in the artwork named in the context. Be vivid, conversational, and under 55 words. End with a perceptive question only when it genuinely advances the visitor's looking. Respond in English. " +
-        `Choose one visual effect from ${EFFECT_VOCABULARY.join(", ")}.`,
-      input: prompt,
-      schema: dialogueSchema
-    });
-    sendJson(response, 200, { ...parsed, live: true, model: LLM_MODEL });
+    const perspectives = await fetchPerspectives({ question: body.question, masters, artwork });
+    sendJson(response, 200, { perspectives, live: true, model: LLM_MODEL, arm });
   } catch (error) {
     // No canned prose behind a 200. A failure must be visible to the client and to stderr.
-    console.error(`[dialogue] failed after retries: ${error.message} (question chars=${body.question.length}, companions=${companions.length})`);
+    console.error(
+      `[dialogue] arm=${arm} failed after retries: ${error.message} ` +
+      `(question chars=${body.question.length}, masters=${masters.map(master => master.id).join(",")})`
+    );
     sendJson(response, 502, {
       error: "The live dialogue model could not be reached.",
       warning: error.message,
-      live: false
+      live: false,
+      arm
     });
   }
 }
@@ -366,7 +517,7 @@ createServer(async (request, response) => {
   try {
     const url = new URL(request.url, `http://${request.headers.host}`);
     const rawPath = url.pathname;
-    if (request.method === "POST" && rawPath === "/api/dialogue") return await handleDialogue(request, response);
+    if (request.method === "POST" && rawPath === "/api/dialogue") return await handleDialogue(request, response, url);
     if (request.method === "GET" && rawPath === "/api/artworks") return await handleArtworks(url, response);
     if (request.method === "POST" && rawPath === "/api/realtime/session") return await handleRealtimeSession(request, response);
     if (rawPath.startsWith("/api/integrations/") || rawPath.startsWith("/api/worlds/") || rawPath.startsWith("/api/tripo/")) {

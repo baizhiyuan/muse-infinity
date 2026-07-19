@@ -24,13 +24,16 @@ export class VoiceConversation {
         throw new Error(`Dialogue request failed (${response.status}): ${detail}`);
       }
       if (!reply) throw new Error("Dialogue response was not valid JSON.");
+      if (!Array.isArray(reply.perspectives)) throw new Error("Dialogue response carried no perspectives.");
       this.onReply?.(reply);
-      this.speak(reply.text);
+      // Read all three. Speaking only the first would silently discard two thirds of the answer,
+      // which is the entire point of asking three masters at once.
+      this.speak(reply.perspectives.map(item => `${item.speaker}. ${item.text}`).join(" "));
       this.onState?.(reply.live ? "live" : "local");
     } catch (error) {
       // Surface the real failure. A canned apology here would hide exactly what the caller
       // needs in order to render an honest error.
-      this.onReply?.({ speaker: "MUSE", text: "", live: false, error: error.message });
+      this.onReply?.({ perspectives: [], live: false, error: error.message });
       this.onState?.("offline");
     }
   }
