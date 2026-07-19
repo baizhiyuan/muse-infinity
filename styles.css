@@ -18,7 +18,7 @@ button { color: inherit; }
 
 #visual-backdrop { position:fixed; z-index:0; inset:0; background:#f6efe3 center/cover no-repeat; transition:background-image 1.2s ease, opacity 1.2s ease, filter 1.2s ease; }
 #visual-backdrop::after { content:""; position:absolute; inset:0; background:linear-gradient(180deg, rgba(250,245,235,.03), rgba(20,14,10,.22) 78%, rgba(8,6,10,.42)), radial-gradient(circle at 50% 32%, rgba(255,250,238,.16), transparent 52%); }
-body[data-stage="threshold"] #visual-backdrop { background-image:url("assets/generated/muse-hero-conservatory-v3.png"); filter:saturate(1.02) brightness(1.02); }
+body[data-stage="threshold"] #visual-backdrop { background-image:url("assets/scenes/01-entrance-conservatory.png"); filter:saturate(1.02) brightness(1.02); }
 body[data-stage="threshold"] #visual-backdrop::after { background:linear-gradient(180deg,rgba(255,252,246,.02) 48%,rgba(244,231,211,.16) 72%,rgba(111,83,64,.2)); }
 body[data-stage="life_question"] #visual-backdrop { background-image:url("assets/generated/between-worlds-romantic-v2.png"); filter:saturate(.92) brightness(.78); }
 body[data-stage="ai_curation"] #visual-backdrop { background-image:url("assets/generated/world-selection-gallery-v2.png"); filter:saturate(1.02) brightness(.82); }
@@ -28,7 +28,7 @@ body[data-stage="roundtable"] #visual-backdrop,
 body[data-stage="decision"] #visual-backdrop { background-image:url("assets/generated/museum-salon-romantic-v2.png"); filter:saturate(1.02) brightness(1.04); }
 body[data-stage="world_exploration"] #visual-backdrop { background-image:url("assets/generated/monet-light-world-v2.png"); filter:saturate(1.04) brightness(1.02); }
 body[data-stage="world_transformation"] #visual-backdrop { background-image:url("assets/generated/transformation-romantic-v2.png"); filter:saturate(1.04) brightness(1.04); }
-body[data-stage="manifesto"] #visual-backdrop { background-image:url("assets/generated/manifesto-garden-v2.png"); filter:saturate(1.03) brightness(1.02); }
+body[data-stage="manifesto"] #visual-backdrop { background-image:url("assets/scenes/09-final-dream-world.png"); filter:saturate(1.03) brightness(1.02); }
 body[data-stage="world_exploration"] #visual-backdrop,
 body[data-stage="world_exploration"] #world { opacity:0; }
 #world-environment { position:fixed; z-index:0; inset:0; opacity:0; transition:opacity 1.8s ease; overflow:hidden; background:#08060a; }
@@ -147,6 +147,35 @@ h2 { font-size: clamp(36px, 5vw, 72px); line-height: 1.02; max-width: 900px; }
 .gallery-viewport.ready { opacity:1; }
 .museum-3d-canvas { position:absolute; inset:0; width:100%; height:100%; display:block; cursor:grab; touch-action:none; }
 .museum-3d-canvas:active { cursor:grabbing; }
+.scene-backdrop { position:absolute; inset:-2%; width:104%; height:104%; object-fit:cover; opacity:1; transform:scale(1.025); filter:saturate(1.02) brightness(.94); transition:opacity .52s ease,transform 1.1s cubic-bezier(.2,.8,.2,1),filter .52s ease; animation:scene-drift 18s ease-in-out infinite alternate; }
+.scene-backdrop.changing { opacity:.12; transform:scale(1.075); filter:saturate(.75) brightness(.65) blur(5px); animation:none; }
+@keyframes scene-drift { from { transform:scale(1.025) translate3d(-.4%,0,0); } to { transform:scale(1.065) translate3d(.4%,-.4%,0); } }
+.scene-vignette { position:absolute; z-index:1; inset:0; pointer-events:none; background:linear-gradient(90deg,rgba(8,7,10,.62) 0%,rgba(8,7,10,.18) 36%,transparent 62%),linear-gradient(180deg,rgba(8,7,10,.26),transparent 28%,transparent 65%,rgba(8,7,10,.52)); }
+.image-gallery .gallery-title { color:#fffaf1; text-shadow:0 3px 28px rgba(0,0,0,.72); }
+.image-gallery .gallery-title .eyebrow { color:#f0dcb2; }
+.image-gallery .gallery-title > span { color:rgba(255,250,241,.64); }
+.image-gallery .collection-status { color:rgba(255,250,241,.72); border-color:rgba(255,255,255,.22); background:rgba(9,8,11,.38); }
+.image-gallery .collection-status i { background:#efcf8a; box-shadow:0 0 0 4px rgba(239,207,138,.14); }
+.image-gallery .companion-chip { color:#fffaf1; border-color:rgba(255,255,255,.22); background:rgba(9,8,11,.42); }
+.image-gallery .conversation-dock { color:#fffaf1; border-color:rgba(255,255,255,.2); background:rgba(9,8,11,.62); box-shadow:0 25px 80px rgba(0,0,0,.28); }
+.image-gallery .conversation-head,.image-gallery .conversation-form { border-color:rgba(255,255,255,.15); }
+.image-gallery .conversation-head small { color:#f0dcb2; }
+.image-gallery .conversation-head b { color:#b9d7c5; }
+.image-gallery .conversation-log b { color:#f0b7c2; }
+.image-gallery .conversation-form input { color:#fffaf1; }
+.image-gallery .conversation-form input::placeholder { color:rgba(255,250,241,.5); }
+.image-gallery .conversation-form button { color:#f0dcb2; border-color:rgba(255,255,255,.15); }
+.image-gallery .mic-button { color:#fffaf1; border-color:rgba(255,255,255,.22); background:rgba(255,255,255,.08); }
+.scene-navigator { position:absolute; z-index:7; left:50%; bottom:38px; transform:translateX(-50%); display:flex; align-items:center; gap:14px; color:#fffaf1; }
+.scene-arrow { width:42px; height:42px; display:grid; place-items:center; border:1px solid rgba(255,255,255,.42); border-radius:50%; background:rgba(8,7,10,.38); color:#fffaf1; font-size:17px; cursor:pointer; backdrop-filter:blur(12px); transition:.25s; }
+.scene-arrow:hover { background:rgba(255,255,255,.9); color:#171219; }
+.scene-arrow:disabled { opacity:.26; cursor:default; }
+.scene-progress { min-width:168px; text-align:center; }
+.scene-progress > span { display:block; margin-bottom:8px; font-size:7px; letter-spacing:.18em; }
+.scene-progress > div { display:flex; justify-content:center; gap:6px; }
+.scene-progress button { width:18px; height:2px; padding:0; border:0; background:rgba(255,255,255,.28); cursor:pointer; transition:.35s; }
+.scene-progress button.active { width:32px; background:#fffaf1; }
+.image-gallery .salon-next { color:#fffaf1; border-color:rgba(255,255,255,.32); background:rgba(8,7,10,.42); }
 .gallery-title { position:absolute; z-index:3; left:42px; top:82px; max-width:430px; color:#342d28; pointer-events:none; text-shadow:0 2px 20px rgba(255,255,255,.86); }
 .gallery-title .eyebrow { color:#8a654a; margin-bottom:8px; }
 .gallery-title h2 { font-size:clamp(35px,4vw,62px); }
@@ -286,10 +315,10 @@ body[data-stage="threshold"] .wordmark,
 body[data-stage="threshold"] .quiet-button,
 body[data-stage="threshold"] .icon-button { color:#4a3a2f; }
 body[data-stage="world_exploration"] .topbar,
-body[data-stage="world_exploration"] .footer { color:rgba(52,45,40,.58); }
+body[data-stage="world_exploration"] .footer { color:rgba(255,250,241,.66); }
 body[data-stage="world_exploration"] .wordmark,
 body[data-stage="world_exploration"] .quiet-button,
-body[data-stage="world_exploration"] .icon-button { color:#42382f; }
+body[data-stage="world_exploration"] .icon-button { color:#fffaf1; }
 body[data-stage="life_question"] .wordmark,
 body[data-stage="ai_curation"] .wordmark { text-shadow:0 0 28px rgba(201,170,114,.18); }
 
@@ -314,13 +343,18 @@ body[data-stage="ai_curation"] .wordmark { text-shadow:0 0 28px rgba(201,170,114
   .curation-route article img { width:92px; height:78px; }
   .curation-route article b { font-size:16px; }
   .answer-lenses { grid-template-columns:1fr; }
-  .gallery-title { left:18px; top:72px; }
-  .gallery-title h2 { font-size:34px; }
-  .collection-status { right:18px; top:72px; max-width:45vw; }
-  .companion-dock { right:18px; top:116px; }
+  .gallery-title { left:18px; top:96px; }
+  .gallery-title { max-width:78vw; }
+  .gallery-title h2 { font-size:32px; }
+  .collection-status { display:none; }
+  .companion-dock { right:18px; top:72px; }
   .artwork-inspector { right:18px; top:200px; width:min(270px,80vw); }
-  .conversation-dock { left:18px; right:18px; bottom:62px; width:auto; }
-  .salon-next { right:18px; bottom:18px; }
+  .conversation-dock { left:18px; right:18px; bottom:76px; width:auto; }
+  .scene-navigator { left:18px; bottom:18px; transform:none; gap:8px; }
+  .scene-progress { min-width:92px; }
+  .scene-progress > div { display:none; }
+  .scene-arrow { width:38px; height:38px; }
+  .image-gallery .salon-next { right:18px; bottom:18px; }
   .monet-layout { grid-template-columns:1fr; }
   .artwork-ribbon { grid-template-columns:1fr; }
   .artwork-card { min-height:128px; }

@@ -68,6 +68,7 @@ const state = {
   userAnswer: "",
   answerLens: null,
   discussionCount: 0,
+  exhibitionSceneIndex: 0,
   audioEnabled: false,
   demoMode: new URLSearchParams(location.search).get("demo") === "true",
   performanceMode: "auto",
@@ -102,6 +103,17 @@ const lifeQuestions = [
   "What makes a life meaningful?",
   "How do I live with uncertainty?",
   "What should I keep, and what should I let go?"
+];
+
+const EXHIBITION_MODE = "image";
+const exhibitionScenes = [
+  { id:"court-of-light", title:"The Court of Light", chapter:"THRESHOLD", artist:"A SHARED BEGINNING", image:"assets/scenes/02-court-of-light.png", prompt:"Before an answer appears, what becomes visible when you slow down?" },
+  { id:"monet-water-light", title:"The Garden of Water and Light", chapter:"PERCEPTION", artist:"CLAUDE MONET", image:"assets/scenes/03-monet-water-and-light.png", prompt:"Does meaning arrive through grand events, or through learning to notice ordinary light?", artwork:museumArtworks[0] },
+  { id:"sunset-frames", title:"The Sunset Frame Gallery", chapter:"MEMORY", artist:"BETWEEN VOICES", image:"assets/scenes/04-sunset-frame-gallery.png", prompt:"Which memories frame your life, and which ones leave the frame empty?" },
+  { id:"van-gogh-sky", title:"The Studio of the Burning Sky", chapter:"INTENSITY", artist:"VINCENT VAN GOGH", image:"assets/scenes/05-van-gogh-burning-sky.png", prompt:"Can struggle deepen attention without becoming the source of meaning itself?", artwork:museumArtworks[1] },
+  { id:"petal-transition", title:"The Petal Transition Hall", chapter:"TRANSFORMATION", artist:"THE WORLD IS CHANGING", image:"assets/scenes/06-petal-transition-hall.png", prompt:"What part of your question is beginning to change shape?" },
+  { id:"frida-memory", title:"The Courtyard of Living Memory", chapter:"IDENTITY", artist:"FRIDA KAHLO", image:"assets/scenes/07-frida-living-memory.png", prompt:"What can pain become after it is given color, symbol and form?" },
+  { id:"kusama-infinity", title:"The Infinite Repetition Chamber", chapter:"INFINITY", artist:"YAYOI KUSAMA", image:"assets/scenes/08-kusama-infinite-dots.png", prompt:"If the self repeats into infinity, what remains uniquely yours?" }
 ];
 
 const dialogueSets = {
@@ -260,6 +272,7 @@ function curationData() {
 function aiCurationView() {
   const [title, chapters] = curationData();
   const companions = selectedCompanionRecords();
+  const routeScenes = [exhibitionScenes[1], exhibitionScenes[3], exhibitionScenes[5]];
   return `<section class="scene curation-stage">
     <div class="curation-summary">
       <p class="eyebrow">03 / AI THEME CURATION COMPLETE</p>
@@ -269,8 +282,8 @@ function aiCurationView() {
     </div>
     <div class="curation-route" aria-label="Curated exhibition route">
       ${chapters.map((chapter, index) => {
-        const artwork = museumArtworks[index % museumArtworks.length];
-        return `<article><small>CHAPTER 0${index + 1}</small><img src="${artwork.image}" alt="${escapeHtml(artwork.title)}"/><div><b>${escapeHtml(chapter)}</b><span>${escapeHtml(artwork.title)} · ${escapeHtml(artwork.artist)}</span></div></article>`;
+        const scene = routeScenes[index];
+        return `<article><small>CHAPTER 0${index + 1}</small><img src="${scene.image}" alt="${escapeHtml(scene.title)}"/><div><b>${escapeHtml(chapter)}</b><span>${escapeHtml(scene.title)} · ${escapeHtml(scene.artist)}</span></div></article>`;
       }).join("")}
       <div class="curation-ready"><span>CURATORIAL SPINE READY</span><button class="primary-action" data-action="enter-gallery">ENTER THE EXHIBITION <span>→</span></button></div>
     </div>
@@ -279,25 +292,24 @@ function aiCurationView() {
 
 function worldExplorationView() {
   const companions = selectedCompanionRecords();
-  const focused = state.focusedArtwork || state.galleryArtworks[0];
-  const [curationTitle] = curationData();
+  const scene = exhibitionScenes[state.exhibitionSceneIndex] || exhibitionScenes[0];
   return `<section class="scene gallery-scene">
-    <div class="gallery-viewport" id="museum3d">
-      <div class="gallery-title"><p class="eyebrow">04 / THE CROSS-TIME EXHIBITION</p><h2>${escapeHtml(curationTitle)}</h2><span>DRAG TO LOOK · W A S D TO WALK · CLICK AN ARTWORK</span></div>
-      <div class="collection-status"><i></i><span id="collectionStatus">OPEN ACCESS COLLECTION · LOCAL CURATION</span></div>
+    <div class="gallery-viewport image-gallery ready" id="museum3d">
+      <img class="scene-backdrop" id="sceneBackdrop" src="${scene.image}" alt="${escapeHtml(scene.title)}" />
+      <div class="scene-vignette" aria-hidden="true"></div>
+      <div class="gallery-title"><p class="eyebrow"><span id="sceneChapter">${escapeHtml(scene.chapter)}</span> · <span id="sceneArtist">${escapeHtml(scene.artist)}</span></p><h2 id="sceneTitle">${escapeHtml(scene.title)}</h2><span>SCROLL OR USE ARROWS TO MOVE THROUGH THE EXHIBITION</span></div>
+      <div class="collection-status"><i></i><span>IMAGE WORLD PROTOTYPE · 3D REPLACEMENT READY</span></div>
       <div class="companion-dock" aria-label="Your museum companions">${companions.map(character => `<div class="companion-chip" title="${character.fullName}"><img src="${character.portrait}" alt="${character.fullName}"/><span>${character.name}</span></div>`).join("")}</div>
-      <aside class="artwork-inspector" id="artworkInspector">
-        <button class="inspector-close" data-action="close-inspector" aria-label="Close artwork details">×</button>
-        <img id="focusedArtworkImage" src="${focused.image}" alt="${escapeHtml(focused.title)}" />
-        <p id="focusedArtworkMeta">${escapeHtml(focused.artist)} · ${escapeHtml(focused.date)}</p>
-        <h3 id="focusedArtworkTitle">${escapeHtml(focused.title)}</h3>
-        <a id="focusedArtworkSource" href="${focused.sourceUrl}" target="_blank" rel="noreferrer">VIEW MUSEUM RECORD ↗</a>
-      </aside>
       <section class="conversation-dock" aria-label="Talk with your museum companions">
-        <div class="conversation-head"><div><small>WALKING CONVERSATION</small><b id="voiceState">LOCAL PREVIEW</b></div><button class="mic-button" data-action="voice-listen" aria-label="Speak to your companions"><span>◉</span> TALK</button></div>
-        <div class="conversation-log" id="conversationLog"><p><b>${companions[0]?.name || "MUSE"}</b> Look closely at a work, then ask how it changes your original question.</p></div>
+        <div class="conversation-head"><div><small>DISCUSS THIS SCENE</small><b id="voiceState">LOCAL PREVIEW</b></div><button class="mic-button" data-action="voice-listen" aria-label="Speak to your companions"><span>◉</span> TALK</button></div>
+        <div class="conversation-log" id="conversationLog"><p id="sceneDiscussionPrompt"><b>${companions[0]?.name || "MUSE"}</b> ${escapeHtml(scene.prompt)}</p></div>
         <form id="galleryQuestionForm" class="conversation-form"><input id="galleryQuestion" autocomplete="off" placeholder="Discuss this artwork with your companions…" aria-label="Question for your companions"/><button>ASK</button></form>
       </section>
+      <nav class="scene-navigator" aria-label="Exhibition scenes">
+        <button class="scene-arrow" data-scene-direction="-1" aria-label="Previous scene" title="Previous scene" disabled>←</button>
+        <div class="scene-progress"><span id="sceneCounter">01 / ${String(exhibitionScenes.length).padStart(2,"0")}</span><div>${exhibitionScenes.map((item,index) => `<button data-scene-index="${index}" class="${index === state.exhibitionSceneIndex ? "active" : ""}" aria-label="Go to ${escapeHtml(item.title)}"></button>`).join("")}</div></div>
+        <button class="scene-arrow" data-scene-direction="1" aria-label="Next scene" title="Next scene">→</button>
+      </nav>
       <button class="salon-next" data-action="form-answer">FORM MY ANSWER <span>→</span></button>
     </div>
   </section>`;
@@ -383,6 +395,12 @@ function bindActions() {
     if (input) input.value = button.dataset.answerText;
     experience.querySelectorAll("[data-answer-choice]").forEach(option => option.classList.toggle("selected", option === button));
   }));
+  experience.querySelectorAll("[data-scene-direction]").forEach(button => button.addEventListener("click", () => {
+    goToExhibitionScene(state.exhibitionSceneIndex + Number(button.dataset.sceneDirection));
+  }));
+  experience.querySelectorAll("[data-scene-index]").forEach(button => button.addEventListener("click", () => {
+    goToExhibitionScene(Number(button.dataset.sceneIndex));
+  }));
   experience.querySelectorAll("[data-memory]").forEach(button => button.addEventListener("click", () => {
     state.memories.add(button.dataset.memory);
     button.style.opacity = ".42";
@@ -438,22 +456,76 @@ function selectedCompanionRecords() {
   return characters.filter(character => state.selectedCompanions.has(character.id));
 }
 
+let sceneTransitionTimer = 0;
+let exhibitionAbortController = null;
+function goToExhibitionScene(index) {
+  const nextIndex = Math.max(0, Math.min(exhibitionScenes.length - 1, index));
+  if (nextIndex === state.exhibitionSceneIndex) return;
+  state.exhibitionSceneIndex = nextIndex;
+  const scene = exhibitionScenes[nextIndex];
+  const image = document.querySelector("#sceneBackdrop");
+  const chapter = document.querySelector("#sceneChapter");
+  const artist = document.querySelector("#sceneArtist");
+  const title = document.querySelector("#sceneTitle");
+  const counter = document.querySelector("#sceneCounter");
+  const prompt = document.querySelector("#sceneDiscussionPrompt");
+  const companion = selectedCompanionRecords()[0]?.name || "MUSE";
+  if (!image) return;
+  state.focusedArtwork = scene.artwork || null;
+  clearTimeout(sceneTransitionTimer);
+  image.classList.add("changing");
+  sceneTransitionTimer = setTimeout(async () => {
+    image.src = scene.image;
+    image.alt = scene.title;
+    try { await image.decode(); } catch {}
+    if (chapter) chapter.textContent = scene.chapter;
+    if (artist) artist.textContent = scene.artist;
+    if (title) title.textContent = scene.title;
+    if (counter) counter.textContent = `${String(nextIndex + 1).padStart(2,"0")} / ${String(exhibitionScenes.length).padStart(2,"0")}`;
+    if (prompt) prompt.innerHTML = `<b>${escapeHtml(companion)}</b> ${escapeHtml(scene.prompt)}`;
+    document.querySelectorAll("[data-scene-index]").forEach((button, buttonIndex) => button.classList.toggle("active", buttonIndex === nextIndex));
+    const previous = document.querySelector("[data-scene-direction='-1']");
+    const next = document.querySelector("[data-scene-direction='1']");
+    if (previous) previous.disabled = nextIndex === 0;
+    if (next) next.disabled = nextIndex === exhibitionScenes.length - 1;
+    image.classList.remove("changing");
+  }, 240);
+}
+
 async function initMuseumExperience() {
   const container = document.querySelector("#museum3d");
   if (!container || state.stage !== "world_exploration") return;
   teardownMuseumExperience();
-  museum3D = new Museum3D({
-    container,
-    artworks: state.galleryArtworks,
-    companions: selectedCompanionRecords(),
-    onArtworkFocus: focusArtwork,
-    onReady: () => container.classList.add("ready")
-  });
-  museum3D.mount();
+  if (EXHIBITION_MODE === "image") {
+    exhibitionScenes.forEach(scene => { const image = new Image(); image.src = scene.image; });
+    exhibitionAbortController = new AbortController();
+    let lastWheelAt = 0;
+    container.addEventListener("wheel", event => {
+      const now = Date.now();
+      if (Math.abs(event.deltaY) < 18 || now - lastWheelAt < 700) return;
+      lastWheelAt = now;
+      goToExhibitionScene(state.exhibitionSceneIndex + (event.deltaY > 0 ? 1 : -1));
+    }, { passive:true, signal:exhibitionAbortController.signal });
+    addEventListener("keydown", event => {
+      if (event.key === "ArrowRight") goToExhibitionScene(state.exhibitionSceneIndex + 1);
+      if (event.key === "ArrowLeft") goToExhibitionScene(state.exhibitionSceneIndex - 1);
+    }, { signal:exhibitionAbortController.signal });
+    state.focusedArtwork = exhibitionScenes[state.exhibitionSceneIndex]?.artwork || null;
+  } else {
+    museum3D = new Museum3D({
+      container,
+      artworks: state.galleryArtworks,
+      companions: selectedCompanionRecords(),
+      onArtworkFocus: focusArtwork,
+      onReady: () => container.classList.add("ready")
+    });
+    museum3D.mount();
+  }
   voiceConversation = new VoiceConversation({
     context: () => ({
       companions: selectedCompanionRecords().map(({ id, fullName }) => ({ id, name: fullName })),
       lifeQuestion: state.currentQuestion,
+      scene: exhibitionScenes[state.exhibitionSceneIndex],
       artwork: state.focusedArtwork ? { title: state.focusedArtwork.title, artist: state.focusedArtwork.artist, date: state.focusedArtwork.date } : null
     }),
     onState: updateVoiceState,
@@ -461,6 +533,7 @@ async function initMuseumExperience() {
     onReply: reply => appendConversation(reply.speaker || "MUSE", reply.text, reply.live)
   });
 
+  if (EXHIBITION_MODE === "image") return;
   const collectionStatus = document.querySelector("#collectionStatus");
   try {
     const liveArtworks = await loadOpenAccessArtworks("Claude Monet");
@@ -515,6 +588,9 @@ function updateVoiceState(status) {
 }
 
 function teardownMuseumExperience() {
+  clearTimeout(sceneTransitionTimer);
+  exhibitionAbortController?.abort();
+  exhibitionAbortController = null;
   museum3D?.dispose();
   museum3D = null;
   voiceConversation?.dispose();
@@ -571,7 +647,7 @@ function scheduleTransformation() {
 function reset() {
   transformationTimers.forEach(clearTimeout);
   teardownMuseumExperience();
-  Object.assign(state, { stage:"threshold", selectedPortal:null, activeSpeaker:null, currentQuestion:null, dialogueIndex:0, philosophy:{perception:0,emotion:0,invention:0}, finalWorld:null, userAnswer:"", answerLens:null, discussionCount:0, transformationStart:0, transformationChoice:null, selectedCompanions:new Set(), galleryArtworks:[...museumArtworks], focusedArtwork:museumArtworks[0] });
+  Object.assign(state, { stage:"threshold", selectedPortal:null, activeSpeaker:null, currentQuestion:null, dialogueIndex:0, philosophy:{perception:0,emotion:0,invention:0}, finalWorld:null, userAnswer:"", answerLens:null, discussionCount:0, exhibitionSceneIndex:0, transformationStart:0, transformationChoice:null, selectedCompanions:new Set(), galleryArtworks:[...museumArtworks], focusedArtwork:museumArtworks[0] });
   particleMode = "threshold";
   setStage("threshold");
 }
