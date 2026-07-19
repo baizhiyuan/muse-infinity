@@ -10,7 +10,22 @@ import { EFFECT_VOCABULARY, describeInvalidEffect } from "./config/effects.js";
 // LLM config: prefer LLM_* (OpenAI-compatible proxy, e.g. baizhiyuan); fall back to OPENAI_*.
 const LLM_API_KEY = process.env.LLM_API_KEY || process.env.OPENAI_API_KEY;
 const LLM_BASE_URL = (process.env.LLM_BASE_URL || "https://api.openai.com").replace(/\/+$/, "");
-const LLM_MODEL = process.env.LLM_MODEL || process.env.OPENAI_MODEL || "gpt-5.6";
+
+// Model choice is the AC3 latency lever, not an aesthetic preference.
+//
+// AC3 budgets a three-perspective turn at P50 <= 3.0s. `gpt-5.6` cannot reach it on this proxy:
+// measured end-to-end it decodes at roughly 25 output tokens/second, and three ~55-word readings
+// are ~250 output tokens, so the call floors out near 9-12s. The cost is decode throughput, not
+// hidden reasoning — `reasoning.effort: "none"` was measured and moved the number by well under a
+// second, because gpt-5.6 was already spending only ~40 reasoning tokens here. Shortening the word
+// cap does not rescue it either: a SINGLE one-perspective gpt-5.6 call, shortest prompt tested,
+// never came in under 4.4s. No arrangement of an ~25 tok/s model meets a 3s budget.
+//
+// `gpt-5.3-codex-spark` serves the identical strict-json_schema request in ~2.3-2.8s on the same
+// proxy, same prompts, same three-perspective payload. It is a throughput difference, not a
+// quality tradeoff dressed up as one — the arm/schema architecture below is unchanged.
+const DEFAULT_LLM_MODEL = "gpt-5.3-codex-spark";
+const LLM_MODEL = process.env.LLM_MODEL || process.env.OPENAI_MODEL || DEFAULT_LLM_MODEL;
 
 const port = Number(process.env.PORT || 4173);
 const host = process.env.HOST || "127.0.0.1";
@@ -103,6 +118,13 @@ function extractResponseText(payload) {
 // failure a retry recovers. A non-429 4xx is a request defect: retrying only doubles the latency.
 const LLM_RETRY_LIMIT = 1;
 
+// A visitor-facing request must fail rather than hang. `fetch` has no default timeout, so without
+// this a stalled proxy connection holds the turn open forever and the demo reads as frozen with
+// nothing on stderr. Sized as a hang-guard, not a latency control: it sits far above the ~2.5s
+// P50 and the worst honest call observed, so it fires on genuinely stuck sockets, never on slow
+// ones. An abort is retryable, so a single stalled connection still gets one clean second attempt.
+const LLM_TIMEOUT_MS = 15_000;
+
 function isRetryableStatus(status) {
   return status === 429 || status >= 500;
 }
@@ -113,6 +135,7 @@ async function requestLLM({ instructions, input, schema }) {
     llmResponse = await fetch(`${LLM_BASE_URL}/v1/responses`, {
       method: "POST",
       headers: { authorization: `Bearer ${LLM_API_KEY}`, "content-type": "application/json" },
+      signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
       body: JSON.stringify({
         model: LLM_MODEL,
         store: false,
@@ -122,7 +145,9 @@ async function requestLLM({ instructions, input, schema }) {
       })
     });
   } catch (error) {
-    throw Object.assign(new Error(`LLM transport failed: ${error.message}`), { retryable: true });
+    const timedOut = error?.name === "TimeoutError" || error?.name === "AbortError";
+    const detail = timedOut ? `no response within ${LLM_TIMEOUT_MS}ms` : error.message;
+    throw Object.assign(new Error(`LLM transport failed: ${detail}`), { retryable: true });
   }
 
   if (!llmResponse.ok) {
