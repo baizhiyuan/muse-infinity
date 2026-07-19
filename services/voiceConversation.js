@@ -18,13 +18,22 @@ export class VoiceConversation {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ question: clean, ...this.context() })
       });
-      if (!response.ok) throw new Error(`Dialogue request failed (${response.status})`);
-      const reply = await response.json();
+      const reply = await response.json().catch(() => null);
+      if (!response.ok) {
+        const detail = reply?.warning || reply?.error || `HTTP ${response.status}`;
+        throw new Error(`Dialogue request failed (${response.status}): ${detail}`);
+      }
+      if (!reply) throw new Error("Dialogue response was not valid JSON.");
+      if (!Array.isArray(reply.perspectives)) throw new Error("Dialogue response carried no perspectives.");
       this.onReply?.(reply);
-      this.speak(reply.text);
+      // Read all three. Speaking only the first would silently discard two thirds of the answer,
+      // which is the entire point of asking three masters at once.
+      this.speak(reply.perspectives.map(item => `${item.speaker}. ${item.text}`).join(" "));
       this.onState?.(reply.live ? "live" : "local");
     } catch (error) {
-      this.onReply?.({ speaker: "MUSE", text: "The live conversation is unavailable, but the gallery remains open. Try the question again when the model connection is restored.", live: false, error: error.message });
+      // Surface the real failure. A canned apology here would hide exactly what the caller
+      // needs in order to render an honest error.
+      this.onReply?.({ perspectives: [], live: false, error: error.message });
       this.onState?.("offline");
     }
   }

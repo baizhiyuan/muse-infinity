@@ -5,11 +5,27 @@ import { extname, normalize, resolve, sep } from "node:path";
 import { generateWorld, getWorldOperation, worldLabsConfigured } from "./services/worldLabsApi.js";
 import { animateTripoModel, checkTripoRig, generateTripoModel, generateTripoMultiviewModel, getTripoTask, rigTripoModel, tripoConfigured } from "./services/tripoApi.js";
 import { salonParticipants } from "./config/museumAssets.js";
+import { EFFECT_VOCABULARY, describeInvalidEffect } from "./config/effects.js";
 
 // LLM config: prefer LLM_* (OpenAI-compatible proxy, e.g. baizhiyuan); fall back to OPENAI_*.
 const LLM_API_KEY = process.env.LLM_API_KEY || process.env.OPENAI_API_KEY;
 const LLM_BASE_URL = (process.env.LLM_BASE_URL || "https://api.openai.com").replace(/\/+$/, "");
-const LLM_MODEL = process.env.LLM_MODEL || process.env.OPENAI_MODEL || "gpt-5.6";
+
+// Model choice is the AC3 latency lever, not an aesthetic preference.
+//
+// AC3 budgets a three-perspective turn at P50 <= 3.0s. `gpt-5.6` cannot reach it on this proxy:
+// measured end-to-end it decodes at roughly 25 output tokens/second, and three ~55-word readings
+// are ~250 output tokens, so the call floors out near 9-12s. The cost is decode throughput, not
+// hidden reasoning — `reasoning.effort: "none"` was measured and moved the number by well under a
+// second, because gpt-5.6 was already spending only ~40 reasoning tokens here. Shortening the word
+// cap does not rescue it either: a SINGLE one-perspective gpt-5.6 call, shortest prompt tested,
+// never came in under 4.4s. No arrangement of an ~25 tok/s model meets a 3s budget.
+//
+// `gpt-5.3-codex-spark` serves the identical strict-json_schema request in ~2.3-2.8s on the same
+// proxy, same prompts, same three-perspective payload. It is a throughput difference, not a
+// quality tradeoff dressed up as one — the arm/schema architecture below is unchanged.
+const DEFAULT_LLM_MODEL = "gpt-5.3-codex-spark";
+const LLM_MODEL = process.env.LLM_MODEL || process.env.OPENAI_MODEL || DEFAULT_LLM_MODEL;
 
 const port = Number(process.env.PORT || 4173);
 const host = process.env.HOST || "127.0.0.1";
@@ -97,65 +113,550 @@ function extractResponseText(payload) {
   return "";
 }
 
-function localDialogue({ question, companions = [], artwork }) {
-  const speaker = companions[0]?.name || "MUSE";
-  const work = artwork?.title ? `${artwork.title} by ${artwork.artist}` : "the work in front of us";
-  const lower = String(question || "").toLowerCase();
-  let text = `Look again at ${work}. Before deciding what it means, notice which detail your first interpretation ignored. What changed when you gave that detail your attention?`;
-  if (lower.includes("feel") || lower.includes("emotion")) text = `${work} does not contain a single emotion; it stages a meeting between the light in the image and the memory you brought into the room.`;
-  if (lower.includes("ai") || lower.includes("machine")) text = `A machine can multiply interpretations of ${work}, but the human responsibility is choosing which interpretation deserves to change the room.`;
-  return { speaker, text, effect: "mist", live: false, model: "local-curated-fallback" };
+// One bounded retry. A second attempt is worth it for transport faults, 5xx, 429, and for a
+// well-formed 200 carrying the wrong shape — a count/enum mismatch is exactly the stochastic
+// failure a retry recovers. A non-429 4xx is a request defect: retrying only doubles the latency.
+const LLM_RETRY_LIMIT = 1;
+
+// A visitor-facing request must fail rather than hang. `fetch` has no default timeout, so without
+// this a stalled proxy connection holds the turn open forever and the demo reads as frozen with
+// nothing on stderr.
+//
+// This is a HANG-GUARD, not a latency control, and the distinction cost us the whole feature once:
+// the previous 15s value was justified against a "~2.5s P50" that came from short synthetic prompts
+// fired straight at the proxy. Measured through the server on the real ~5300-char payload, P50 is
+// ~9.7s — so 15s was ~1.5x the median, not the wide margin the comment claimed, and gpt-5.6 sat
+// past it entirely and 502'd on 6/6 requests with no clue as to why.
+//
+// Sized now against the real distribution: if spark's P95/P50 ratio resembles the ~2.1x measured on
+// gpt-5.6, P95 lands near 20s. 45s clears that with room and still catches a genuinely dead socket.
+// A timeout that fires on a merely-slow call converts a survivable wait into a 502 in front of an
+// audience, which is the only stage-fatal failure mode this feature has.
+const LLM_TIMEOUT_MS = 45_000;
+
+function isRetryableStatus(status) {
+  return status === 429 || status >= 500;
 }
 
-async function handleDialogue(request, response) {
-  const body = JSON.parse(await readBody(request) || "{}");
-  if (!body.question || typeof body.question !== "string") return sendJson(response, 400, { error: "A question is required." });
-  const fallback = localDialogue(body);
-  const apiKey = LLM_API_KEY;
-  if (!apiKey) return sendJson(response, 200, fallback);
-
-  const companions = Array.isArray(body.companions) ? body.companions.slice(0, 3).map(item => String(item.name || "")).filter(Boolean) : [];
-  const artwork = body.artwork || {};
-  const prompt = [
-    `Visitor question: ${body.question.slice(0, 1200)}`,
-    `Companions available: ${companions.join(", ") || "MUSE curator"}`,
-    `Artwork in focus: ${artwork.title || "unknown"} by ${artwork.artist || "unknown"}, ${artwork.date || "date unknown"}`
-  ].join("\n");
-
+async function requestLLM({ instructions, input, schema }) {
+  let llmResponse;
   try {
-    const openaiResponse = await fetch(`${LLM_BASE_URL}/v1/responses`, {
+    llmResponse = await fetch(`${LLM_BASE_URL}/v1/responses`, {
       method: "POST",
-      headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
+      headers: { authorization: `Bearer ${LLM_API_KEY}`, "content-type": "application/json" },
+      signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
       body: JSON.stringify({
         model: LLM_MODEL,
         store: false,
-        instructions: "You orchestrate a live museum walk. Speak through exactly one of the available historical companions as an explicitly interpretive AI perspective, never as an authentic quotation, endorsement, or impersonation. Ground the answer in the artwork named in the context. Be vivid, conversational, and under 55 words. End with a perceptive question only when it genuinely advances the visitor's looking. Choose one visual effect from mist, fracture, garden, network, or light.",
-        input: prompt,
-        text: {
-          format: {
-            type: "json_schema",
-            name: "museum_dialogue",
-            strict: true,
-            schema: {
-              type: "object",
-              properties: {
-                speaker: { type: "string" },
-                text: { type: "string" },
-                effect: { type: "string", enum: ["mist", "fracture", "garden", "network", "light"] }
-              },
-              required: ["speaker", "text", "effect"],
-              additionalProperties: false
-            }
-          }
-        }
+        instructions,
+        input,
+        text: { format: { type: "json_schema", name: schema.name, strict: true, schema: schema.schema } }
       })
     });
-    if (!openaiResponse.ok) throw new Error(`OpenAI returned ${openaiResponse.status}`);
-    const payload = await openaiResponse.json();
-    const parsed = JSON.parse(extractResponseText(payload));
-    sendJson(response, 200, { ...parsed, live: true, model: LLM_MODEL });
   } catch (error) {
-    sendJson(response, 200, { ...fallback, warning: error.message });
+    const timedOut = error?.name === "TimeoutError" || error?.name === "AbortError";
+    const detail = timedOut ? `no response within ${LLM_TIMEOUT_MS}ms` : error.message;
+    throw Object.assign(new Error(`LLM transport failed: ${detail}`), { retryable: true });
+  }
+
+  if (!llmResponse.ok) {
+    const detail = await llmResponse.text().catch(() => "");
+    throw Object.assign(new Error(`LLM proxy returned ${llmResponse.status}: ${detail.slice(0, 300)}`), {
+      retryable: isRetryableStatus(llmResponse.status)
+    });
+  }
+
+  const payload = await llmResponse.json().catch(error => {
+    throw Object.assign(new Error(`LLM envelope was not JSON: ${error.message}`), { retryable: true });
+  });
+  const text = extractResponseText(payload);
+  if (!text) throw Object.assign(new Error("LLM response carried no output_text content."), { retryable: true });
+
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch (error) {
+    throw Object.assign(new Error(`LLM output was not valid JSON: ${error.message}`), { retryable: true });
+  }
+
+  // Schema-conformance failure. strict json_schema makes this rare, not impossible.
+  const problem = schema.validate?.(parsed);
+  if (problem) throw Object.assign(new Error(`LLM output failed conformance: ${problem}`), { retryable: true });
+
+  return parsed;
+}
+
+/**
+ * Shared LLM entrypoint for every live endpoint. Owns the /v1/responses fetch, stderr logging,
+ * one bounded retry, and throwing on failure. It NEVER returns canned prose — callers that want
+ * a fallback must choose it explicitly and label it, so no failure can hide behind an HTTP 200.
+ */
+async function callLLM({ instructions, input, schema }) {
+  if (!LLM_API_KEY) throw new Error("LLM_API_KEY is not configured on the server.");
+  let lastError = null;
+  for (let attempt = 1; attempt <= LLM_RETRY_LIMIT + 1; attempt += 1) {
+    try {
+      return await requestLLM({ instructions, input, schema });
+    } catch (error) {
+      lastError = error;
+      console.error(
+        `[llm] schema=${schema.name} model=${LLM_MODEL} attempt=${attempt}/${LLM_RETRY_LIMIT + 1} ` +
+        `inputChars=${String(input || "").length} failed: ${error.message}`
+      );
+      if (!error.retryable) break;
+    }
+  }
+  throw lastError;
+}
+
+/** One request returns this many parallel, non-interacting perspectives. */
+const PERSPECTIVE_COUNT = 3;
+
+/** Used to top up the roster when the visitor invited fewer than three companions. */
+const DEFAULT_MASTER_IDS = ["monet", "van_gogh", "socrates"];
+
+// The strict json_schema subset accepted by OpenAI-compatible proxies has no dependable
+// array-length keyword. `minItems`/`maxItems` are not rejected by this proxy, but nothing
+// proves they are ENFORCED, so relying on them would be faith, not a guarantee. The count is
+// stated in prose and asserted below: that DETECTS a wrong count, it does not PREVENT one.
+// A detected mismatch is retryable, which is why the weaker guarantee is survivable.
+const perspectiveItemSchema = {
+  type: "object",
+  properties: {
+    speakerId: { type: "string" },
+    speaker: { type: "string" },
+    text: { type: "string" },
+    effect: { type: "string", enum: EFFECT_VOCABULARY }
+  },
+  required: ["speakerId", "speaker", "text", "effect"],
+  additionalProperties: false
+};
+
+function describeInvalidPerspective(item) {
+  if (!item || typeof item !== "object") return "perspective was not an object";
+  if (typeof item.speakerId !== "string" || !item.speakerId.trim()) return "speakerId was empty";
+  if (typeof item.speaker !== "string" || !item.speaker.trim()) return "speaker was empty";
+  if (typeof item.text !== "string" || !item.text.trim()) return "text was empty";
+  return describeInvalidEffect(item.effect);
+}
+
+/** Arm A: one call returning all three perspectives. */
+const perspectivesSchema = {
+  name: "museum_perspectives",
+  schema: {
+    type: "object",
+    properties: { perspectives: { type: "array", items: perspectiveItemSchema } },
+    required: ["perspectives"],
+    additionalProperties: false
+  },
+  validate(parsed) {
+    if (!parsed || typeof parsed !== "object") return "response was not an object";
+    if (!Array.isArray(parsed.perspectives)) return "perspectives was not an array";
+    if (parsed.perspectives.length !== PERSPECTIVE_COUNT) {
+      return `expected ${PERSPECTIVE_COUNT} perspectives, received ${parsed.perspectives.length}`;
+    }
+    for (const item of parsed.perspectives) {
+      const problem = describeInvalidPerspective(item);
+      if (problem) return problem;
+    }
+    const ids = new Set(parsed.perspectives.map(item => item.speakerId.trim().toLowerCase()));
+    if (ids.size !== PERSPECTIVE_COUNT) return "two perspectives claimed the same speakerId";
+    return null;
+  }
+};
+
+/** Arm B: one call per master, merged into the same response shape. */
+const singlePerspectiveSchema = {
+  name: "museum_perspective",
+  schema: perspectiveItemSchema,
+  validate: describeInvalidPerspective
+};
+
+/**
+ * Resolves the visitor's invited companions to authored masters, topping up to exactly three.
+ * A participant with no `lens` is skipped: three voices without three lenses are one voice
+ * three times, which is the failure this whole feature exists to avoid.
+ */
+function selectMasters(companions) {
+  const chosen = [];
+  const seen = new Set();
+  const take = participant => {
+    if (!participant?.lens || seen.has(participant.id) || chosen.length >= PERSPECTIVE_COUNT) return;
+    seen.add(participant.id);
+    chosen.push(participant);
+  };
+  for (const item of Array.isArray(companions) ? companions : []) {
+    take(salonParticipants.find(participant => participant.id === item?.id));
+  }
+  for (const id of DEFAULT_MASTER_IDS) take(salonParticipants.find(participant => participant.id === id));
+  for (const participant of salonParticipants) take(participant);
+  return chosen;
+}
+
+function describeArtwork(artwork = {}) {
+  return `Artwork in focus: ${artwork.title || "unknown"} by ${artwork.artist || "unknown"} (${artwork.date || "date unknown"})`;
+}
+
+/** The master's authored lens, verbatim. Divergence is data, not a hope placed in one prompt. */
+function describeMaster(master, index) {
+  const { lens } = master;
+  return [
+    `--- PERSPECTIVE ${index + 1} ---`,
+    `speakerId (copy verbatim): ${master.id}`,
+    `speaker (copy verbatim): ${master.fullName}`,
+    `Voice instruction, obey exactly: ${lens.systemPrompt}`,
+    `Lens: ${lens.lens}`,
+    `Attend only to: ${lens.attention.join("; ")}`,
+    `Questioning style: ${lens.questionStyle}`,
+    `Draw on this vocabulary: ${lens.vocabulary.join(", ")}`,
+    `Never use these words: ${lens.forbidden.join(", ")}`
+  ].join("\n");
+}
+
+// The compliance framing every attributed voice carries, on every endpoint. Stated once so a new
+// endpoint cannot ship a subtly weaker version of the claim the product makes to its visitors.
+const INTERPRETIVE_FRAMING =
+  "Every perspective is an explicitly interpretive AI reading — never an authentic quotation, " +
+  "never an endorsement, never impersonation of the real historical person.";
+
+const PERSPECTIVE_RULES =
+  `${INTERPRETIVE_FRAMING} Ground every ` +
+  "perspective in the artwork named in the context. Answer the visitor's specific question rather " +
+  "than restating the artwork, and vary the opening — a different question must produce a " +
+  "differently-shaped reply, not one stock sentence with the nouns swapped. " +
+  "Reply in English, under 55 words each. " +
+  `Choose one visual effect per perspective from ${EFFECT_VOCABULARY.join(", ")}.`;
+
+// The vocabulary lists are quarantined per master because this is a single call that can see all
+// three of them. Without the quarantine a term leaks into a neighbouring voice whenever it also
+// happens to describe the artwork literally, and the three readings stop being tellable apart.
+const PARALLEL_INSTRUCTIONS =
+  `You compose a museum wall of parallel readings. Return exactly ${PERSPECTIVE_COUNT} perspectives — ` +
+  "one for each master described in the context, in the order given, and no others. The masters do " +
+  "not address, answer, or acknowledge one another; each looks at the same artwork alone. Obey each " +
+  "master's own voice instruction, vocabulary, and forbidden words. Each vocabulary belongs to its " +
+  "own master alone: never let a term listed under one master appear in another master's " +
+  "perspective, in any inflected form, even when it would literally describe what is depicted — " +
+  "reach for a different word instead. " + PERSPECTIVE_RULES;
+
+function buildPerspectiveInput({ question, masters, artwork }) {
+  return [
+    `Visitor question: ${question.slice(0, 1200)}`,
+    describeArtwork(artwork),
+    "",
+    ...masters.map(describeMaster)
+  ].join("\n");
+}
+
+/**
+ * Re-anchors a model-claimed speakerId to a real master. The model is told to copy the ids; when
+ * it does not, we map positionally rather than shipping a speaker the client cannot resolve.
+ */
+function resolveMaster(claimedId, masters, index, label) {
+  const claimed = String(claimedId || "").trim().toLowerCase();
+  const matched = masters.find(master => master.id === claimed);
+  if (!matched) console.error(`[${label}] unknown speakerId "${claimedId}" mapped positionally to ${masters[index].id}`);
+  return matched || masters[index];
+}
+
+function reconcilePerspectives(perspectives, masters) {
+  return perspectives.map((item, index) => {
+    const master = resolveMaster(item.speakerId, masters, index, "dialogue");
+    return { speakerId: master.id, speaker: master.fullName, text: item.text.trim(), effect: item.effect };
+  });
+}
+
+/** Arm A — one call, all three perspectives, one atomic success or failure. */
+async function fetchPerspectivesTogether({ question, masters, artwork }) {
+  const parsed = await callLLM({
+    instructions: PARALLEL_INSTRUCTIONS,
+    input: buildPerspectiveInput({ question, masters, artwork }),
+    schema: perspectivesSchema
+  });
+  return reconcilePerspectives(parsed.perspectives, masters);
+}
+
+/** Arm B — three concurrent calls, one per master, merged into the identical response shape. */
+async function fetchPerspectivesInParallel({ question, masters, artwork }) {
+  const parsed = await Promise.all(masters.map(master => callLLM({
+    instructions: `${master.lens.systemPrompt} ${PERSPECTIVE_RULES}`,
+    input: buildPerspectiveInput({ question, masters: [master], artwork }),
+    schema: singlePerspectiveSchema
+  })));
+  return reconcilePerspectives(parsed, masters);
+}
+
+/**
+ * No-key offline mode. Returns the same three-perspective shape so the client never has to know
+ * which mode produced it — but every entry is labelled, and none of it is model output.
+ */
+function localPerspectives({ question, masters, artwork }) {
+  const work = artwork?.title ? `${artwork.title} by ${artwork.artist}` : "the work in front of us";
+  const lower = String(question || "").toLowerCase();
+  const angle = lower.includes("feel") || lower.includes("emotion")
+    ? "what it asks you to feel"
+    : lower.includes("ai") || lower.includes("machine")
+      ? "what a machine can and cannot decide about it"
+      : "what your first glance left out";
+  return masters.map((master, index) => ({
+    speakerId: master.id,
+    speaker: master.fullName,
+    text: `Offline reading ${index + 1}: through a lens of ${master.lens.attention[0]}, ${work} rewards asking ${angle}.`,
+    effect: EFFECT_VOCABULARY[index % EFFECT_VOCABULARY.length]
+  }));
+}
+
+async function handleDialogue(request, response, url) {
+  const body = JSON.parse(await readBody(request) || "{}");
+  if (!body.question || typeof body.question !== "string") return sendJson(response, 400, { error: "A question is required." });
+
+  const masters = selectMasters(body.companions);
+  const artwork = body.artwork || {};
+
+  // Deliberate, documented exception to the honesty rule: running with no key configured is an
+  // opt-in offline mode, not a disguised failure. It is labelled as such on the wire.
+  if (!LLM_API_KEY) {
+    return sendJson(response, 200, {
+      perspectives: localPerspectives({ question: body.question, masters, artwork }),
+      live: false,
+      model: "local-curated-fallback",
+      fallback: true,
+      warning: "LOCAL FALLBACK — no API key configured"
+    });
+  }
+
+  // Bake-off dispatch. Both arms return the identical shape, so the client never branches on it.
+  // Without this the bake-off would run arm A twice and report the difference as noise.
+  const arm = url?.searchParams.get("arm") === "B" ? "B" : "A";
+  const fetchPerspectives = arm === "B" ? fetchPerspectivesInParallel : fetchPerspectivesTogether;
+
+  try {
+    const perspectives = await fetchPerspectives({ question: body.question, masters, artwork });
+    sendJson(response, 200, { perspectives, live: true, model: LLM_MODEL, arm });
+  } catch (error) {
+    // No canned prose behind a 200. A failure must be visible to the client and to stderr.
+    console.error(
+      `[dialogue] arm=${arm} failed after retries: ${error.message} ` +
+      `(question chars=${body.question.length}, masters=${masters.map(master => master.id).join(",")})`
+    );
+    sendJson(response, 502, {
+      error: "The live dialogue model could not be reached.",
+      warning: error.message,
+      live: false,
+      arm
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Closing roundtable — a synthesis of the walk the visitor actually took.
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Server-side re-clamp of the visitor's trajectory digest.
+ *
+ * The client caps the same fields at construction, but a client cap is a product decision, not a
+ * security boundary. This body crosses a trust boundary and flows straight into a paid prompt, so
+ * the server re-derives every bound itself rather than trusting the client's discipline.
+ */
+const DIGEST_CAPS = {
+  artworks: 5,
+  questions: 3,
+  perspectives: PERSPECTIVE_COUNT,
+  scanLimit: 32,
+  nameChars: 120,
+  questionChars: 200,
+  lineChars: 160
+};
+
+function clampText(value, limit) {
+  return typeof value === "string" ? value.trim().replace(/\s+/g, " ").slice(0, limit) : "";
+}
+
+function clampList(value, limit) {
+  return (Array.isArray(value) ? value : []).slice(0, limit);
+}
+
+function clampDigest(raw = {}) {
+  const visitedArtworks = clampList(raw.visitedArtworks, DIGEST_CAPS.artworks)
+    .map(item => ({
+      title: clampText(item?.title, DIGEST_CAPS.nameChars),
+      artist: clampText(item?.artist, DIGEST_CAPS.nameChars)
+    }))
+    .filter(item => item.title);
+
+  const askedQuestions = clampList(raw.askedQuestions, DIGEST_CAPS.questions)
+    .map(item => clampText(item, DIGEST_CAPS.questionChars))
+    .filter(Boolean);
+
+  // One line per speaker. Scanning is itself bounded — a client sending 10k entries must not cost
+  // us a 10k-element pass just to discover it only gets three of them through.
+  const seen = new Set();
+  const perspectiveLog = [];
+  for (const item of clampList(raw.perspectiveLog, DIGEST_CAPS.scanLimit)) {
+    if (perspectiveLog.length >= DIGEST_CAPS.perspectives) break;
+    const speakerId = clampText(item?.speakerId, DIGEST_CAPS.nameChars).toLowerCase();
+    const line = clampText(item?.line, DIGEST_CAPS.lineChars);
+    if (!speakerId || !line || seen.has(speakerId)) continue;
+    seen.add(speakerId);
+    perspectiveLog.push({ speakerId, speaker: clampText(item?.speaker, DIGEST_CAPS.nameChars) || speakerId, line });
+  }
+
+  return { visitedArtworks, askedQuestions, perspectiveLog };
+}
+
+const roundtableThreadSchema = {
+  type: "object",
+  properties: {
+    speakerId: { type: "string" },
+    speaker: { type: "string" },
+    text: { type: "string" }
+  },
+  required: ["speakerId", "speaker", "text"],
+  additionalProperties: false
+};
+
+const roundtableSchema = {
+  name: "museum_roundtable",
+  schema: {
+    type: "object",
+    properties: {
+      worldTitle: { type: "string" },
+      synthesis: { type: "string" },
+      threads: { type: "array", items: roundtableThreadSchema }
+    },
+    required: ["worldTitle", "synthesis", "threads"],
+    additionalProperties: false
+  },
+  validate(parsed) {
+    if (!parsed || typeof parsed !== "object") return "response was not an object";
+    if (!clampText(parsed.worldTitle, 200)) return "worldTitle was empty";
+    if (!clampText(parsed.synthesis, 200)) return "synthesis was empty";
+    if (!Array.isArray(parsed.threads)) return "threads was not an array";
+    if (parsed.threads.length !== PERSPECTIVE_COUNT) {
+      return `expected ${PERSPECTIVE_COUNT} threads, received ${parsed.threads.length}`;
+    }
+    for (const thread of parsed.threads) {
+      if (!thread || typeof thread !== "object") return "thread was not an object";
+      if (!clampText(thread.speakerId, 200)) return "thread speakerId was empty";
+      if (!clampText(thread.speaker, 200)) return "thread speaker was empty";
+      if (!clampText(thread.text, 200)) return "thread text was empty";
+    }
+    const ids = new Set(parsed.threads.map(thread => thread.speakerId.trim().toLowerCase()));
+    if (ids.size !== PERSPECTIVE_COUNT) return "two threads claimed the same speakerId";
+    return null;
+  }
+};
+
+const ROUNDTABLE_INSTRUCTIONS =
+  "The visitor has finished walking the gallery and the masters now close the visit together. " +
+  `Return exactly ${PERSPECTIVE_COUNT} threads, one for each master described in the context, in ` +
+  "the order given. Each thread is that master's single closing remark about THIS visitor's walk, " +
+  "spoken in that master's own lens and vocabulary, under 55 words, never addressing the other " +
+  "masters. Then name the world these choices built. " +
+  "The artworks the visitor stopped at and the questions they asked are listed verbatim in the " +
+  "context — draw on those exact items and invent no others; if a list is empty, say so plainly " +
+  "rather than inventing a stop or a question. " +
+  "worldTitle: three to seven words, no quotation marks. " +
+  "synthesis: 45 to 70 words addressed to the visitor as \"you\", naming at least one artwork they " +
+  "actually stopped at and at least one question they actually asked. " +
+  `${INTERPRETIVE_FRAMING} ` +
+  "The interface renders that disclaimer beside every thread already, so do NOT write a disclaimer " +
+  "sentence into the thread text or the synthesis — spending words restating it makes all three " +
+  "threads share the same phrasing, which is the opposite of three distinct readings. " +
+  "Reply in English.";
+
+function describeDigest(digest) {
+  const artworks = digest.visitedArtworks.length
+    ? digest.visitedArtworks.map(item => `- ${item.title}${item.artist ? ` by ${item.artist}` : ""}`).join("\n")
+    : "- (none: the visitor stopped at no artwork)";
+  const questions = digest.askedQuestions.length
+    ? digest.askedQuestions.map(item => `- ${item}`).join("\n")
+    : "- (none: the visitor asked nothing aloud)";
+  const readings = digest.perspectiveLog.length
+    ? digest.perspectiveLog.map(item => `- ${item.speaker}: ${item.line}`).join("\n")
+    : "- (none)";
+  return [
+    "Artworks this visitor actually stopped at, in order:",
+    artworks,
+    "",
+    "Questions this visitor actually asked, in order:",
+    questions,
+    "",
+    "What each master already told them during the walk:",
+    readings
+  ].join("\n");
+}
+
+function buildRoundtableInput({ digest, masters }) {
+  return [describeDigest(digest), "", ...masters.map(describeMaster)].join("\n");
+}
+
+/**
+ * No-key offline mode, same shape as the live path. It is assembled mechanically from the
+ * visitor's own digest — it is not reasoning, and the response labels it as such.
+ */
+function localRoundtable({ digest, masters }) {
+  const stop = digest.visitedArtworks[0];
+  const work = stop ? `${stop.title}${stop.artist ? ` by ${stop.artist}` : ""}` : "the room you walked";
+  const question = digest.askedQuestions[0] || "what you came here to ask";
+  return {
+    worldTitle: "The World Between Worlds",
+    synthesis:
+      `Offline synthesis: you stopped at ${work} and asked about ${question}. With no model ` +
+      "configured this closing is assembled from your own trajectory rather than reasoned about.",
+    threads: masters.map((master, index) => ({
+      speakerId: master.id,
+      speaker: master.fullName,
+      text: `Offline reading ${index + 1}: through a lens of ${master.lens.attention[0]}, ${work} is where your walk keeps returning.`
+    }))
+  };
+}
+
+async function handleRoundtable(request, response) {
+  const body = JSON.parse(await readBody(request) || "{}");
+  const digest = clampDigest(body.session);
+  const masters = selectMasters(body.companions);
+
+  // Same documented exception as /api/dialogue: no key configured is an opt-in offline mode, and
+  // it says so on the wire. Every other failure is a failure and is reported as one.
+  if (!LLM_API_KEY) {
+    return sendJson(response, 200, {
+      ...localRoundtable({ digest, masters }),
+      live: false,
+      model: "local-curated-fallback",
+      fallback: true,
+      warning: "LOCAL FALLBACK — no API key configured"
+    });
+  }
+
+  try {
+    const parsed = await callLLM({
+      instructions: ROUNDTABLE_INSTRUCTIONS,
+      input: buildRoundtableInput({ digest, masters }),
+      schema: roundtableSchema
+    });
+    sendJson(response, 200, {
+      worldTitle: parsed.worldTitle.trim(),
+      synthesis: parsed.synthesis.trim(),
+      threads: parsed.threads.map((thread, index) => {
+        const master = resolveMaster(thread.speakerId, masters, index, "roundtable");
+        return { speakerId: master.id, speaker: master.fullName, text: thread.text.trim() };
+      }),
+      live: true,
+      model: LLM_MODEL
+    });
+  } catch (error) {
+    console.error(
+      `[roundtable] failed after retries: ${error.message} ` +
+      `(artworks=${digest.visitedArtworks.length}, questions=${digest.askedQuestions.length}, ` +
+      `masters=${masters.map(master => master.id).join(",")})`
+    );
+    sendJson(response, 502, {
+      error: "The closing roundtable could not be synthesised.",
+      warning: error.message,
+      live: false
+    });
   }
 }
 
@@ -280,7 +781,8 @@ createServer(async (request, response) => {
   try {
     const url = new URL(request.url, `http://${request.headers.host}`);
     const rawPath = url.pathname;
-    if (request.method === "POST" && rawPath === "/api/dialogue") return await handleDialogue(request, response);
+    if (request.method === "POST" && rawPath === "/api/dialogue") return await handleDialogue(request, response, url);
+    if (request.method === "POST" && rawPath === "/api/roundtable") return await handleRoundtable(request, response);
     if (request.method === "GET" && rawPath === "/api/artworks") return await handleArtworks(url, response);
     if (request.method === "POST" && rawPath === "/api/realtime/session") return await handleRealtimeSession(request, response);
     if (rawPath.startsWith("/api/integrations/") || rawPath.startsWith("/api/worlds/") || rawPath.startsWith("/api/tripo/")) {
@@ -303,4 +805,20 @@ createServer(async (request, response) => {
   }
 }).listen(port, host, () => {
   console.log(`MUSE∞ is running at http://${host}:${port}`);
+
+  // Announce the RESOLVED model, not the default. `.env` shipping LLM_MODEL=gpt-5.6 silently
+  // overrode DEFAULT_LLM_MODEL and made the whole perf fix inert — the only symptom was every
+  // dialogue request 502ing after two 15s timeouts, which reads like an outage rather than a
+  // config override. A model that cannot meet the latency budget must be visible at boot.
+  const fromEnv = Boolean(process.env.LLM_MODEL || process.env.OPENAI_MODEL);
+  const source = !fromEnv ? "default"
+    : LLM_MODEL === DEFAULT_LLM_MODEL ? "env, matches default"
+    : `env, OVERRIDING default ${DEFAULT_LLM_MODEL}`;
+  console.log(`[llm] model=${LLM_MODEL} (${source}) timeout=${LLM_TIMEOUT_MS}ms`);
+  if (LLM_MODEL !== DEFAULT_LLM_MODEL) {
+    console.warn(
+      `[llm] WARNING: ${DEFAULT_LLM_MODEL} is the only model measured to fit the ${LLM_TIMEOUT_MS}ms budget ` +
+      `on the real three-perspective payload. ${LLM_MODEL} may time out on every dialogue request.`
+    );
+  }
 });
