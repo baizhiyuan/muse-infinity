@@ -447,6 +447,10 @@ function focusArtwork(artwork) {
   if (title) title.textContent = artwork.title;
   if (source) source.href = artwork.sourceUrl;
   inspector?.classList.add("visible");
+  // Act4 (spec core wow): clicking an artwork makes a selected companion respond to IT,
+  // grounded in its metadata, via live GPT-5.6. context() already carries the just-set
+  // state.focusedArtwork, so the reply is about this specific work.
+  voiceConversation?.ask(`Tell me how you see "${artwork.title}".`);
 }
 
 function appendConversation(speaker, text, live = false) {
