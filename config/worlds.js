@@ -178,10 +178,11 @@ export const WORLDS = {
     render: "splat",
     worldScale: 1.7, // open worlds tuned like the finale ones (feedback #11): world grand, people human-scale
     metric: { scale: 2.3438, ty: 1.6394 },
-    // Spawn re-derived from the collider (user report: started in the sky): the old point sat
-    // over a gap, so groundAt fell back to bare groundY. (-6,-1.5) is the centre of the densest
-    // walkable cell of the 5-6.2m main terrace (100+ verts under it).
-    profile: { spawn: { x: -6.0, z: -1.5 }, groundY: 5.6, bounds: { minX: -30.63, maxX: 21.07, minZ: -39.06, maxZ: 33.44 }, yaw: 0, cameraFar: 400 },
+    // Spawn re-derived from the collider (user report: started in the sky; then nudged right +
+    // forward on request): the old point sat over a gap, so groundAt fell back to bare groundY.
+    // (-3.5,-3.5) still has 50-80 terrace verts underfoot - any further right/forward is the
+    // water-void edge (0 verts at (0,-4)).
+    profile: { spawn: { x: -3.5, z: -3.5 }, groundY: 5.6, bounds: { minX: -30.63, maxX: 21.07, minZ: -39.06, maxZ: 33.44 }, yaw: 0, cameraFar: 400 },
     enclosed: false,
     recommended: false,
   },
@@ -200,7 +201,10 @@ export const WORLDS = {
     render: "splat",
     worldScale: 1.7, // open worlds tuned like the finale ones (feedback #11): world grand, people human-scale
     metric: { scale: 1.7981, ty: 1.1657 },
-    profile: { spawn: { x: -14.79, z: 39.91 }, groundY: 2.8, bounds: { minX: -75.29, maxX: 68.24, minZ: 1.12, maxZ: 82.68 }, yaw: 0, cameraFar: 400 },
+    // Spawn re-derived from the collider (user report: started off-position): the map's
+    // geometric centre is a no-ground water/void strip (0 verts), so spawn sits on the nearest
+    // dense cell of the ~3m main terrace, (26,38), with groundY matched to that plateau.
+    profile: { spawn: { x: 26.0, z: 38.0 }, groundY: 3.0, bounds: { minX: -75.29, maxX: 68.24, minZ: 1.12, maxZ: 82.68 }, yaw: 0, cameraFar: 400 },
     enclosed: false,
     recommended: false,
   },
