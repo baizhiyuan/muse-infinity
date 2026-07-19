@@ -279,9 +279,14 @@ function describeMaster(master, index) {
   ].join("\n");
 }
 
-const PERSPECTIVE_RULES =
+// The compliance framing every attributed voice carries, on every endpoint. Stated once so a new
+// endpoint cannot ship a subtly weaker version of the claim the product makes to its visitors.
+const INTERPRETIVE_FRAMING =
   "Every perspective is an explicitly interpretive AI reading — never an authentic quotation, " +
-  "never an endorsement, never impersonation of the real historical person. Ground every " +
+  "never an endorsement, never impersonation of the real historical person.";
+
+const PERSPECTIVE_RULES =
+  `${INTERPRETIVE_FRAMING} Ground every ` +
   "perspective in the artwork named in the context. Reply in English, under 55 words each. " +
   `Choose one visual effect per perspective from ${EFFECT_VOCABULARY.join(", ")}.`;
 
@@ -301,15 +306,19 @@ function buildPerspectiveInput({ question, masters, artwork }) {
 }
 
 /**
- * Re-anchors each returned perspective to a real master. The model is told to copy the ids; when
+ * Re-anchors a model-claimed speakerId to a real master. The model is told to copy the ids; when
  * it does not, we map positionally rather than shipping a speaker the client cannot resolve.
  */
+function resolveMaster(claimedId, masters, index, label) {
+  const claimed = String(claimedId || "").trim().toLowerCase();
+  const matched = masters.find(master => master.id === claimed);
+  if (!matched) console.error(`[${label}] unknown speakerId "${claimedId}" mapped positionally to ${masters[index].id}`);
+  return matched || masters[index];
+}
+
 function reconcilePerspectives(perspectives, masters) {
   return perspectives.map((item, index) => {
-    const claimed = String(item.speakerId || "").trim().toLowerCase();
-    const matched = masters.find(master => master.id === claimed);
-    if (!matched) console.error(`[dialogue] unknown speakerId "${item.speakerId}" mapped positionally to ${masters[index].id}`);
-    const master = matched || masters[index];
+    const master = resolveMaster(item.speakerId, masters, index, "dialogue");
     return { speakerId: master.id, speaker: master.fullName, text: item.text.trim(), effect: item.effect };
   });
 }
@@ -392,6 +401,218 @@ async function handleDialogue(request, response, url) {
       warning: error.message,
       live: false,
       arm
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Closing roundtable — a synthesis of the walk the visitor actually took.
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Server-side re-clamp of the visitor's trajectory digest.
+ *
+ * The client caps the same fields at construction, but a client cap is a product decision, not a
+ * security boundary. This body crosses a trust boundary and flows straight into a paid prompt, so
+ * the server re-derives every bound itself rather than trusting the client's discipline.
+ */
+const DIGEST_CAPS = {
+  artworks: 5,
+  questions: 3,
+  perspectives: PERSPECTIVE_COUNT,
+  scanLimit: 32,
+  nameChars: 120,
+  questionChars: 200,
+  lineChars: 160
+};
+
+function clampText(value, limit) {
+  return typeof value === "string" ? value.trim().replace(/\s+/g, " ").slice(0, limit) : "";
+}
+
+function clampList(value, limit) {
+  return (Array.isArray(value) ? value : []).slice(0, limit);
+}
+
+function clampDigest(raw = {}) {
+  const visitedArtworks = clampList(raw.visitedArtworks, DIGEST_CAPS.artworks)
+    .map(item => ({
+      title: clampText(item?.title, DIGEST_CAPS.nameChars),
+      artist: clampText(item?.artist, DIGEST_CAPS.nameChars)
+    }))
+    .filter(item => item.title);
+
+  const askedQuestions = clampList(raw.askedQuestions, DIGEST_CAPS.questions)
+    .map(item => clampText(item, DIGEST_CAPS.questionChars))
+    .filter(Boolean);
+
+  // One line per speaker. Scanning is itself bounded — a client sending 10k entries must not cost
+  // us a 10k-element pass just to discover it only gets three of them through.
+  const seen = new Set();
+  const perspectiveLog = [];
+  for (const item of clampList(raw.perspectiveLog, DIGEST_CAPS.scanLimit)) {
+    if (perspectiveLog.length >= DIGEST_CAPS.perspectives) break;
+    const speakerId = clampText(item?.speakerId, DIGEST_CAPS.nameChars).toLowerCase();
+    const line = clampText(item?.line, DIGEST_CAPS.lineChars);
+    if (!speakerId || !line || seen.has(speakerId)) continue;
+    seen.add(speakerId);
+    perspectiveLog.push({ speakerId, speaker: clampText(item?.speaker, DIGEST_CAPS.nameChars) || speakerId, line });
+  }
+
+  return { visitedArtworks, askedQuestions, perspectiveLog };
+}
+
+const roundtableThreadSchema = {
+  type: "object",
+  properties: {
+    speakerId: { type: "string" },
+    speaker: { type: "string" },
+    text: { type: "string" }
+  },
+  required: ["speakerId", "speaker", "text"],
+  additionalProperties: false
+};
+
+const roundtableSchema = {
+  name: "museum_roundtable",
+  schema: {
+    type: "object",
+    properties: {
+      worldTitle: { type: "string" },
+      synthesis: { type: "string" },
+      threads: { type: "array", items: roundtableThreadSchema }
+    },
+    required: ["worldTitle", "synthesis", "threads"],
+    additionalProperties: false
+  },
+  validate(parsed) {
+    if (!parsed || typeof parsed !== "object") return "response was not an object";
+    if (!clampText(parsed.worldTitle, 200)) return "worldTitle was empty";
+    if (!clampText(parsed.synthesis, 200)) return "synthesis was empty";
+    if (!Array.isArray(parsed.threads)) return "threads was not an array";
+    if (parsed.threads.length !== PERSPECTIVE_COUNT) {
+      return `expected ${PERSPECTIVE_COUNT} threads, received ${parsed.threads.length}`;
+    }
+    for (const thread of parsed.threads) {
+      if (!thread || typeof thread !== "object") return "thread was not an object";
+      if (!clampText(thread.speakerId, 200)) return "thread speakerId was empty";
+      if (!clampText(thread.speaker, 200)) return "thread speaker was empty";
+      if (!clampText(thread.text, 200)) return "thread text was empty";
+    }
+    const ids = new Set(parsed.threads.map(thread => thread.speakerId.trim().toLowerCase()));
+    if (ids.size !== PERSPECTIVE_COUNT) return "two threads claimed the same speakerId";
+    return null;
+  }
+};
+
+const ROUNDTABLE_INSTRUCTIONS =
+  "The visitor has finished walking the gallery and the masters now close the visit together. " +
+  `Return exactly ${PERSPECTIVE_COUNT} threads, one for each master described in the context, in ` +
+  "the order given. Each thread is that master's single closing remark about THIS visitor's walk, " +
+  "spoken in that master's own lens and vocabulary, under 55 words, never addressing the other " +
+  "masters. Then name the world these choices built. " +
+  "The artworks the visitor stopped at and the questions they asked are listed verbatim in the " +
+  "context — draw on those exact items and invent no others; if a list is empty, say so plainly " +
+  "rather than inventing a stop or a question. " +
+  "worldTitle: three to seven words, no quotation marks. " +
+  "synthesis: 45 to 70 words addressed to the visitor as \"you\", naming at least one artwork they " +
+  "actually stopped at and at least one question they actually asked. " +
+  `${INTERPRETIVE_FRAMING} ` +
+  "The interface renders that disclaimer beside every thread already, so do NOT write a disclaimer " +
+  "sentence into the thread text or the synthesis — spending words restating it makes all three " +
+  "threads share the same phrasing, which is the opposite of three distinct readings. " +
+  "Reply in English.";
+
+function describeDigest(digest) {
+  const artworks = digest.visitedArtworks.length
+    ? digest.visitedArtworks.map(item => `- ${item.title}${item.artist ? ` by ${item.artist}` : ""}`).join("\n")
+    : "- (none: the visitor stopped at no artwork)";
+  const questions = digest.askedQuestions.length
+    ? digest.askedQuestions.map(item => `- ${item}`).join("\n")
+    : "- (none: the visitor asked nothing aloud)";
+  const readings = digest.perspectiveLog.length
+    ? digest.perspectiveLog.map(item => `- ${item.speaker}: ${item.line}`).join("\n")
+    : "- (none)";
+  return [
+    "Artworks this visitor actually stopped at, in order:",
+    artworks,
+    "",
+    "Questions this visitor actually asked, in order:",
+    questions,
+    "",
+    "What each master already told them during the walk:",
+    readings
+  ].join("\n");
+}
+
+function buildRoundtableInput({ digest, masters }) {
+  return [describeDigest(digest), "", ...masters.map(describeMaster)].join("\n");
+}
+
+/**
+ * No-key offline mode, same shape as the live path. It is assembled mechanically from the
+ * visitor's own digest — it is not reasoning, and the response labels it as such.
+ */
+function localRoundtable({ digest, masters }) {
+  const stop = digest.visitedArtworks[0];
+  const work = stop ? `${stop.title}${stop.artist ? ` by ${stop.artist}` : ""}` : "the room you walked";
+  const question = digest.askedQuestions[0] || "what you came here to ask";
+  return {
+    worldTitle: "The World Between Worlds",
+    synthesis:
+      `Offline synthesis: you stopped at ${work} and asked about ${question}. With no model ` +
+      "configured this closing is assembled from your own trajectory rather than reasoned about.",
+    threads: masters.map((master, index) => ({
+      speakerId: master.id,
+      speaker: master.fullName,
+      text: `Offline reading ${index + 1}: through a lens of ${master.lens.attention[0]}, ${work} is where your walk keeps returning.`
+    }))
+  };
+}
+
+async function handleRoundtable(request, response) {
+  const body = JSON.parse(await readBody(request) || "{}");
+  const digest = clampDigest(body.session);
+  const masters = selectMasters(body.companions);
+
+  // Same documented exception as /api/dialogue: no key configured is an opt-in offline mode, and
+  // it says so on the wire. Every other failure is a failure and is reported as one.
+  if (!LLM_API_KEY) {
+    return sendJson(response, 200, {
+      ...localRoundtable({ digest, masters }),
+      live: false,
+      model: "local-curated-fallback",
+      fallback: true,
+      warning: "LOCAL FALLBACK — no API key configured"
+    });
+  }
+
+  try {
+    const parsed = await callLLM({
+      instructions: ROUNDTABLE_INSTRUCTIONS,
+      input: buildRoundtableInput({ digest, masters }),
+      schema: roundtableSchema
+    });
+    sendJson(response, 200, {
+      worldTitle: parsed.worldTitle.trim(),
+      synthesis: parsed.synthesis.trim(),
+      threads: parsed.threads.map((thread, index) => {
+        const master = resolveMaster(thread.speakerId, masters, index, "roundtable");
+        return { speakerId: master.id, speaker: master.fullName, text: thread.text.trim() };
+      }),
+      live: true,
+      model: LLM_MODEL
+    });
+  } catch (error) {
+    console.error(
+      `[roundtable] failed after retries: ${error.message} ` +
+      `(artworks=${digest.visitedArtworks.length}, questions=${digest.askedQuestions.length}, ` +
+      `masters=${masters.map(master => master.id).join(",")})`
+    );
+    sendJson(response, 502, {
+      error: "The closing roundtable could not be synthesised.",
+      warning: error.message,
+      live: false
     });
   }
 }
@@ -518,6 +739,7 @@ createServer(async (request, response) => {
     const url = new URL(request.url, `http://${request.headers.host}`);
     const rawPath = url.pathname;
     if (request.method === "POST" && rawPath === "/api/dialogue") return await handleDialogue(request, response, url);
+    if (request.method === "POST" && rawPath === "/api/roundtable") return await handleRoundtable(request, response);
     if (request.method === "GET" && rawPath === "/api/artworks") return await handleArtworks(url, response);
     if (request.method === "POST" && rawPath === "/api/realtime/session") return await handleRealtimeSession(request, response);
     if (rawPath.startsWith("/api/integrations/") || rawPath.startsWith("/api/worlds/") || rawPath.startsWith("/api/tripo/")) {

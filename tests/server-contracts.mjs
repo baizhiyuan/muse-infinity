@@ -157,6 +157,37 @@ try {
   // Offline mode must speak the same shape as the live path, or the client would need to branch.
   assertPerspectivesContract(fallbackPayload, "fallback");
 
+  // The closing roundtable. Asserted here mainly for its server-side re-clamp: the client caps the
+  // digest too, but the server must not trust that, so an over-long digest is sent deliberately.
+  const roundtableResponse = await expectStatus("/api/roundtable", 200, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      // Ten times every cap on every axis, while staying under readBody's 64KB transport limit —
+      // this must exercise the digest clamp, not the body limit.
+      session: {
+        visitedArtworks: Array.from({ length: 50 }, (_, index) => ({ title: `Work ${index}`, artist: "x".repeat(300) })),
+        askedQuestions: Array.from({ length: 30 }, () => "q".repeat(300)),
+        perspectiveLog: Array.from({ length: 30 }, () => ({ speakerId: "monet", speaker: "Claude Monet", line: "l".repeat(300) }))
+      }
+    })
+  });
+  const roundtablePayload = await roundtableResponse.json();
+  assert.equal(roundtablePayload.live, false);
+  assert.equal(roundtablePayload.fallback, true);
+  assert.equal(typeof roundtablePayload.worldTitle, "string");
+  assert.ok(roundtablePayload.worldTitle.length > 0, "roundtable: worldTitle was empty");
+  assert.ok(roundtablePayload.synthesis.trim().length > 0, "roundtable: synthesis was empty");
+  assert.equal(roundtablePayload.threads.length, 3, "roundtable: expected 3 threads");
+  for (const [index, thread] of roundtablePayload.threads.entries()) {
+    assert.ok(thread.speakerId?.length > 0, `roundtable thread[${index}]: speakerId was empty`);
+    assert.ok(thread.speaker?.length > 0, `roundtable thread[${index}]: speaker was empty`);
+    assert.ok(thread.text?.trim().length > 0, `roundtable thread[${index}]: text was empty`);
+  }
+  // A 40-entry oversized digest must not reach the prompt. The offline synthesis quotes the first
+  // artwork and the first question verbatim, so an unclamped field would surface here.
+  assert.ok(roundtablePayload.synthesis.length < 1_000, "roundtable: server did not re-clamp the digest");
+
   await expectStatus("/api/tripo/characters", 200);
   await expectStatus("/api/worlds/generate", 401, {
     method: "POST",

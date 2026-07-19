@@ -60,12 +60,55 @@ const stageMeta = {
   manifesto: ["09", "YOUR IMPOSSIBLE WORLD", "#d1b677"]
 };
 
+// The closing roundtable is the only part of the arc that knows what the visitor actually did,
+// and its digest is posted to a paid endpoint. Every cap is applied AT CONSTRUCTION so the payload
+// has a fixed ceiling (~2KB) no matter how long the walk runs — trimming later leaves one forgotten
+// path through which an unbounded transcript escapes.
+const SESSION_CAPS = { artworks: 5, questions: 3, nameChars: 120, questionChars: 200, lineChars: 160 };
+
+const trimTo = (value, limit) => String(value ?? "").trim().replace(/\s+/g, " ").slice(0, limit);
+
+function emptySession() {
+  return { visitedArtworks: [], askedQuestions: [], perspectiveLog: [] };
+}
+
+function emptyRoundtable() {
+  return { status: "idle", data: null, error: null };
+}
+
+/** Rolling window: a repeat visit moves the artwork to the end rather than duplicating it. */
+function recordVisitedArtwork(session, artwork) {
+  const title = trimTo(artwork?.title, SESSION_CAPS.nameChars);
+  if (!title) return session;
+  const artist = trimTo(artwork?.artist, SESSION_CAPS.nameChars);
+  const key = `${title}|${artist}`.toLowerCase();
+  const kept = session.visitedArtworks.filter(item => `${item.title}|${item.artist}`.toLowerCase() !== key);
+  return { ...session, visitedArtworks: [...kept, { title, artist }].slice(-SESSION_CAPS.artworks) };
+}
+
+function recordAskedQuestion(session, question) {
+  const text = trimTo(question, SESSION_CAPS.questionChars);
+  if (!text) return session;
+  const kept = session.askedQuestions.filter(item => item.toLowerCase() !== text.toLowerCase());
+  return { ...session, askedQuestions: [...kept, text].slice(-SESSION_CAPS.questions) };
+}
+
+/** One line per master — a master's latest reading replaces their previous one. */
+function recordPerspective(session, perspective) {
+  const speakerId = trimTo(perspective?.speakerId, SESSION_CAPS.nameChars).toLowerCase();
+  const line = trimTo(perspective?.text, SESSION_CAPS.lineChars);
+  if (!speakerId || !line) return session;
+  const speaker = trimTo(perspective?.speaker, SESSION_CAPS.nameChars) || speakerId;
+  const kept = session.perspectiveLog.filter(item => item.speakerId !== speakerId);
+  return { ...session, perspectiveLog: [...kept, { speakerId, speaker, line }] };
+}
+
 const state = {
   stage: "threshold",
   selectedPortal: null,
   activeSpeaker: null,
-  currentQuestion: null,
-  dialogueIndex: 0,
+  session: emptySession(),
+  roundtable: emptyRoundtable(),
   philosophy: { perception: 0, emotion: 0, invention: 0 },
   finalWorld: null,
   audioEnabled: false,
@@ -83,6 +126,8 @@ const state = {
 let museum3D = null;
 let voiceConversation = null;
 
+// Legacy effect -> particle-mode map. Its only reader was the scripted dialogue that this file no
+// longer has; the live `effect` field returned by /api/dialogue is wired to the scene separately.
 const effectModes = {
   soften_boundaries:"mist", shift_light:"mist", fracture_geometry:"fracture",
   multiply_particles:"infinity", emotional_turbulence:"turbulence",
@@ -91,33 +136,6 @@ const effectModes = {
 };
 
 const characters = salonParticipants;
-
-const questions = [
-  "What is art supposed to do to a human being?",
-  "Is suffering necessary for great art?",
-  "Will AI expand human creativity or make artists unnecessary?"
-];
-
-const dialogueSets = {
-  "What is art supposed to do to a human being?": [
-    { speaker:"socrates", text:"Before deciding what art should do, should we ask whether the viewer wishes to remain unchanged?", effect:"open_philosophical_void" },
-    { speaker:"monet", text:"Art can make perception unstable enough that an ordinary instant becomes newly visible.", effect:"soften_boundaries" },
-    { speaker:"picasso", text:"Visibility is too gentle. Art should break the agreement that reality has only one face.", effect:"fracture_geometry" },
-    { speaker:"morisot", text:"Perhaps art teaches attention through intimacy: the ordinary room, the held book, the face before it becomes performance.", effect:"connect_idea_network" }
-  ],
-  "Is suffering necessary for great art?": [
-    { speaker:"socrates", text:"If suffering guarantees greatness, why does so much suffering leave no art behind?", effect:"open_philosophical_void" },
-    { speaker:"van_gogh", text:"Pain can intensify what we notice, but attention—not pain itself—gives experience a form.", effect:"emotional_turbulence" },
-    { speaker:"frida", text:"The wound is not the artwork. Transformation begins when the wound becomes a language.", effect:"grow_memory_garden" },
-    { speaker:"monet", text:"A life may also be made profound by learning to see light change on water.", effect:"shift_light" }
-  ],
-  "Will AI expand human creativity or make artists unnecessary?": [
-    { speaker:"socrates", text:"Are we afraid that machines will stop us creating—or that they will reveal how much of creation was repetition?", effect:"open_philosophical_void" },
-    { speaker:"picasso", text:"A tool can fracture form. It cannot decide which fracture is worth carrying into the future.", effect:"fracture_geometry" },
-    { speaker:"hilma", text:"A diagram can hold what ordinary sight cannot: not a replacement for mystery, but a structure through which intuition can travel.", effect:"multiply_particles" },
-    { speaker:"morisot", text:"A new tool is not a new vision by itself. The human act is still deciding what deserves tenderness and form.", effect:"connect_idea_network" }
-  ]
-};
 
 const choices = [
   { id:"perception", label:"Art should teach us to see the world again.", delta:{perception:3,emotion:1,invention:0} },
@@ -146,6 +164,9 @@ function setStage(stage) {
   updateMeter();
   render();
   if (stage === "world_exploration") queueMicrotask(initMuseumExperience);
+  // The closing chapter reflects on a walk that has already happened, so it can only be requested
+  // once the visitor arrives here — never earlier.
+  if (stage === "roundtable") queueMicrotask(requestRoundtable);
   // Entered the transformation without going through choose() (keyboard 6 / ?stage=):
   // self-bootstrap the timeline so it isn't a permanent static dead-end.
   if (stage === "world_transformation" && !state.transformationStart) {
@@ -273,16 +294,58 @@ function summoningView() {
   return `<section class="scene salon"><p class="eyebrow">05 / SEVEN MINDS. ONE EMPTY SEAT.</p><h2>The Salon Outside Time</h2>${ringMarkup("open-salon")}<p class="lede">Historical figures are represented as AI interpretations grounded in documented themes—not authentic quotations or endorsements.</p></section>`;
 }
 
+// The roundtable used to be three preset questions the visitor clicked BEFORE seeing anything, and
+// a canned four-turn script behind each one. It is now the closing chapter: the masters read back
+// the walk that actually happened, and that same synthesis names the world in Act 5.
 function roundtableView() {
-  return `<section class="scene salon"><p class="eyebrow">06 / ASK ACROSS CENTURIES</p><h2>What should they disagree about?</h2><div class="question-panel"><div class="preset-list">${questions.map((q,i)=>`<button data-question="${escapeHtml(q)}"><small>0${i+1}</small><br>${q}</button>`).join("")}</div></div></section>`;
+  const { status, data, error } = state.roundtable;
+  const heading = status === "ready" ? escapeHtml(data.worldTitle) : "The masters read back your walk";
+  return `<section class="scene salon roundtable-scene">
+    <p class="eyebrow">06 / THE CLOSING ROUNDTABLE</p>
+    <h2>${heading}</h2>
+    <div class="roundtable-body">
+      <p class="roundtable-trail">${walkTrailMarkup()}</p>
+      ${roundtableBodyMarkup(status, data, error)}
+    </div>
+    <div class="action-row" style="justify-content:center">
+      <button class="primary-action" data-action="face-contradiction">FACE THE CONTRADICTION <span>→</span></button>
+      ${status === "error" ? `<button class="ghost-action" data-action="retry-roundtable">TRY AGAIN</button>` : ""}
+    </div>
+  </section>`;
 }
 
-function dialogueView() {
-  const turns = dialogueSets[state.currentQuestion];
-  const turn = turns[state.dialogueIndex];
-  state.activeSpeaker = turn.speaker;
-  const speakerLabel = characters.find(({ id })=>id===turn.speaker)?.name || turn.speaker.replace("_"," ").toUpperCase();
-  return `<section class="scene dialogue-scene"><p class="speaker-name">${speakerLabel}</p><blockquote>“${turn.text}”</blockquote><p style="font-size:9px;letter-spacing:.16em;opacity:.5;margin:12px 0 0">AI INTERPRETATION GROUNDED IN DOCUMENTED THEMES — NOT AN AUTHENTIC QUOTATION</p><div class="dialogue-progress">${turns.map((_,i)=>`<i class="${i<=state.dialogueIndex?"done":""}"></i>`).join("")}</div><button class="primary-action" data-action="next-dialogue">${state.dialogueIndex === turns.length-1 ? "FACE THE CONTRADICTION" : "CONTINUE"}</button></section>`;
+/** The visitor's own trajectory, stated on screen — so a synthesis that ignores it is visible. */
+function walkTrailMarkup() {
+  const { visitedArtworks, askedQuestions } = state.session;
+  if (!visitedArtworks.length && !askedQuestions.length) {
+    return "You walked through without stopping at a work or asking anything aloud.";
+  }
+  const stops = visitedArtworks.length
+    ? `You stopped at ${visitedArtworks.map(item => escapeHtml(item.title)).join(" · ")}.`
+    : "You stopped at no particular work.";
+  const asks = askedQuestions.length
+    ? ` You asked: ${askedQuestions.map(item => `“${escapeHtml(item)}”`).join(" ")}`
+    : " You asked nothing aloud.";
+  return `${stops}${asks}`;
+}
+
+function roundtableBodyMarkup(status, data, error) {
+  if (status === "loading") return `<p class="roundtable-status">THE SALON IS READING YOUR WALK…</p>`;
+  if (status === "error") {
+    return `<p class="roundtable-status is-error">THE ROUNDTABLE COULD NOT BE REACHED — ${escapeHtml(error)}</p>`;
+  }
+  if (status !== "ready") return "";
+  const notice = data.live === true
+    ? ""
+    : `<p class="roundtable-status is-error">${escapeHtml(data.warning || "LOCAL FALLBACK — this closing was not produced by a live model.")}</p>`;
+  // Each thread carries its own disclaimer rather than one shared caption: the compliance claim is
+  // about each attributed voice, so it travels with each voice.
+  const threads = (data.threads || []).map(thread => `<article class="roundtable-thread">
+    <b>${escapeHtml(thread.speaker)}</b>
+    <p>${escapeHtml(thread.text)}</p>
+    <small class="ai-disclaimer" data-disclaimer="true">${AI_INTERPRETATION_DISCLAIMER}</small>
+  </article>`).join("");
+  return `${notice}<div class="roundtable-threads">${threads}</div><blockquote class="roundtable-synthesis">${escapeHtml(data.synthesis)}</blockquote>`;
 }
 
 function decisionView() {
@@ -304,20 +367,35 @@ function finalWorldKey() {
   return PHILOSOPHY_WORLDS[philosophyKey()] || DEFAULT_WORLD_KEY;
 }
 
+// The generic ending. It used to be one of four hardcoded pairs chosen by philosophy key, which
+// meant two visitors who walked completely different galleries read the identical closing sentence.
+// It survives only as the failure branch, and the manifesto labels it as one when it fires.
+const FALLBACK_ENDING = {
+  title: "The World Between Worlds",
+  copy: "You believe art must balance perception, emotion and invention without allowing any one truth to become final."
+};
+
+/** Act 5's ending is the closing roundtable's synthesis of the walk the visitor actually took. */
 function finalWorldData() {
-  const top = philosophyKey();
-  const endings = {
-    "emotion+perception": ["The Garden of Living Light", "You believe art should make inner experience visible by teaching perception to move more slowly."],
-    "invention+perception": ["The Museum of Multiple Realities", "You believe art should free perception from a single reality and give form to what does not yet exist."],
-    "emotion+invention": ["The Infinite Interior", "You believe inner truth becomes powerful when it invents a world others can enter." ]
-  };
-  return endings[top] || ["The World Between Worlds", "You believe art must balance perception, emotion and invention without allowing any one truth to become final."];
+  const roundtable = state.roundtable.status === "ready" ? state.roundtable.data : null;
+  const title = String(roundtable?.worldTitle || "").trim();
+  const copy = String(roundtable?.synthesis || "").trim();
+  if (!title || !copy) return { ...FALLBACK_ENDING, source: "fallback", live: false };
+  return { title, copy, source: "roundtable", live: roundtable.live === true };
+}
+
+function endingNoticeMarkup(ending) {
+  if (ending.source === "fallback") {
+    return `<p class="ending-notice">GENERIC ENDING — the closing roundtable never completed, so this world was not synthesised from your walk.</p>`;
+  }
+  if (!ending.live) return `<p class="ending-notice">LOCAL FALLBACK — no live model produced this synthesis.</p>`;
+  return "";
 }
 
 function manifestoView() {
-  const [title,copy] = finalWorldData();
-  state.finalWorld = title;
-  return `<section class="scene manifesto"><div class="manifesto-card"><p class="eyebrow">YOUR IMPOSSIBLE WORLD</p><h2>${title}</h2><p class="manifesto-copy">${copy}</p><div class="score-row">${Object.entries(state.philosophy).map(([key,value])=>`<span>${key.toUpperCase()}<b>${String(value).padStart(2,"0")}</b></span>`).join("")}</div><div class="action-row" style="justify-content:center"><button class="primary-action" data-action="enter-final-world">ENTER YOUR WORLD <span>→</span></button><button class="ghost-action" data-action="reset">ENTER AGAIN</button></div></div></section>`;
+  const ending = finalWorldData();
+  state.finalWorld = ending.title;
+  return `<section class="scene manifesto"><div class="manifesto-card"><p class="eyebrow">YOUR IMPOSSIBLE WORLD</p><h2>${escapeHtml(ending.title)}</h2><p class="manifesto-copy">${escapeHtml(ending.copy)}</p>${endingNoticeMarkup(ending)}<div class="score-row">${Object.entries(state.philosophy).map(([key,value])=>`<span>${key.toUpperCase()}<b>${String(value).padStart(2,"0")}</b></span>`).join("")}</div><div class="action-row" style="justify-content:center"><button class="primary-action" data-action="enter-final-world">ENTER YOUR WORLD <span>→</span></button><button class="ghost-action" data-action="reset">ENTER AGAIN</button></div></div></section>`;
 }
 
 function bindActions() {
@@ -343,11 +421,6 @@ function bindActions() {
     button.querySelector("small").textContent = "Memory absorbed into the world.";
     burst(innerWidth * .72, innerHeight * .5, "#9cd0c7", 44);
   }));
-  experience.querySelectorAll("[data-question]").forEach(button => button.addEventListener("click", () => {
-    state.currentQuestion = button.dataset.question;
-    state.dialogueIndex = 0;
-    showDialogue();
-  }));
   experience.querySelectorAll("[data-choice]").forEach(button => button.addEventListener("click", () => choose(button.dataset.choice)));
   const questionForm = experience.querySelector("#galleryQuestionForm");
   questionForm?.addEventListener("submit", event => {
@@ -370,7 +443,8 @@ function act(action) {
     "voice-listen": () => voiceConversation?.listen(),
     summon: () => setStage("summoning"),
     "open-salon": () => setStage("roundtable"),
-    "next-dialogue": nextDialogue,
+    "face-contradiction": () => { state.activeSpeaker = null; setStage("decision"); },
+    "retry-roundtable": requestRoundtable,
     reset,
     "toggle-audio": toggleAudio,
     "toggle-performance": togglePerformance
@@ -417,11 +491,17 @@ async function initMuseumExperience() {
       artwork: state.focusedArtwork ? { title: state.focusedArtwork.title, artist: state.focusedArtwork.artist, date: state.focusedArtwork.date } : null
     }),
     onState: updateVoiceState,
-    onUserText: text => appendConversation("YOU", text),
+    onUserText: text => {
+      state.session = recordAskedQuestion(state.session, text);
+      appendConversation("YOU", text);
+    },
     onReply: reply => {
       // One question now returns three parallel readings. Rendering only `reply.text` would print
       // the literal string "undefined" under the new contract.
-      for (const perspective of reply.perspectives || []) appendPerspective(perspective, reply.live);
+      for (const perspective of reply.perspectives || []) {
+        state.session = recordPerspective(state.session, perspective);
+        appendPerspective(perspective, reply.live);
+      }
       // The server has always returned `warning`/`error` and nobody read them. A failed or
       // fallback turn is now stated on screen instead of passing as an ordinary reply.
       const notice = reply.error || reply.warning;
@@ -445,6 +525,8 @@ async function initMuseumExperience() {
 
 function focusArtwork(artwork) {
   state.focusedArtwork = artwork;
+  // What the visitor actually walked past is the only ground the closing roundtable stands on.
+  state.session = recordVisitedArtwork(state.session, artwork);
   const inspector = document.querySelector("#artworkInspector");
   const image = document.querySelector("#focusedArtworkImage");
   const meta = document.querySelector("#focusedArtworkMeta");
@@ -515,23 +597,38 @@ function teardownMuseumExperience() {
   voiceConversation = null;
 }
 
-function showDialogue() {
-  state.stage = "roundtable";
-  const turn = dialogueSets[state.currentQuestion][state.dialogueIndex];
-  particleMode = effectModes[turn.effect] || "salon";
-  experience.innerHTML = dialogueView();
-  bindActions();
+/**
+ * Asks the closing roundtable to synthesise the walk. The digest is already capped at construction
+ * (SESSION_CAPS); the server re-clamps it, because a client cap is a product decision and not a
+ * boundary. Renders in place rather than through setStage — the stage has not changed.
+ */
+async function requestRoundtable() {
+  state.roundtable = { status: "loading", data: null, error: null };
+  renderRoundtable();
+  try {
+    const response = await fetch("/api/roundtable", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        session: state.session,
+        companions: selectedCompanionRecords().map(({ id, fullName }) => ({ id, name: fullName }))
+      })
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(payload?.warning || payload?.error || `HTTP ${response.status}`);
+    if (!payload || !Array.isArray(payload.threads)) throw new Error("The roundtable response carried no threads.");
+    state.roundtable = { status: "ready", data: payload, error: null };
+  } catch (error) {
+    // No canned closing behind a failure — the visitor is told the salon did not answer.
+    state.roundtable = { status: "error", data: null, error: error.message };
+  }
+  renderRoundtable();
 }
 
-function nextDialogue() {
-  const turns = dialogueSets[state.currentQuestion];
-  if (state.dialogueIndex < turns.length - 1) {
-    state.dialogueIndex += 1;
-    showDialogue();
-  } else {
-    state.activeSpeaker = null;
-    setStage("decision");
-  }
+function renderRoundtable() {
+  if (state.stage !== "roundtable") return;
+  experience.innerHTML = roundtableView();
+  bindActions();
 }
 
 function choose(id) {
@@ -563,7 +660,11 @@ function scheduleTransformation() {
 function reset() {
   transformationTimers.forEach(clearTimeout);
   teardownMuseumExperience();
-  Object.assign(state, { stage:"threshold", selectedPortal:null, activeSpeaker:null, currentQuestion:null, dialogueIndex:0, philosophy:{perception:0,emotion:0,invention:0}, finalWorld:null, transformationStart:0, transformationChoice:null, selectedCompanions:new Set(["monet","van_gogh","socrates"]), galleryArtworks:[...museumArtworks], focusedArtwork:museumArtworks[0] });
+  // `session` and `roundtable` MUST be cleared here. This function enumerates state keys explicitly
+  // and has always omitted some (`memories`), which meant a second run inherited the first run's
+  // data — now also cleared. A judge who watches two runs would otherwise see run one's walk
+  // synthesised as run two's ending.
+  Object.assign(state, { stage:"threshold", selectedPortal:null, activeSpeaker:null, session:emptySession(), roundtable:emptyRoundtable(), memories:new Set(), philosophy:{perception:0,emotion:0,invention:0}, finalWorld:null, transformationStart:0, transformationChoice:null, selectedCompanions:new Set(["monet","van_gogh","socrates"]), galleryArtworks:[...museumArtworks], focusedArtwork:museumArtworks[0] });
   particleMode = "threshold";
   setStage("threshold");
 }
