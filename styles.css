@@ -20,8 +20,8 @@ button { color: inherit; }
 #visual-backdrop::after { content:""; position:absolute; inset:0; background:linear-gradient(180deg, rgba(250,245,235,.03), rgba(20,14,10,.22) 78%, rgba(8,6,10,.42)), radial-gradient(circle at 50% 32%, rgba(255,250,238,.16), transparent 52%); }
 body[data-stage="threshold"] #visual-backdrop { background-image:url("assets/generated/muse-hero-conservatory-v3.png"); filter:saturate(1.02) brightness(1.02); }
 body[data-stage="threshold"] #visual-backdrop::after { background:linear-gradient(180deg,rgba(255,252,246,.02) 48%,rgba(244,231,211,.16) 72%,rgba(111,83,64,.2)); }
-body[data-stage="museum_void"] #visual-backdrop { background-image:url("assets/generated/between-worlds-romantic-v2.png"); filter:saturate(1.02) brightness(1.05); }
-body[data-stage="world_selection"] #visual-backdrop { background-image:url("assets/generated/world-selection-gallery-v2.png"); filter:saturate(1.02) brightness(1.05); }
+body[data-stage="life_question"] #visual-backdrop { background-image:url("assets/generated/between-worlds-romantic-v2.png"); filter:saturate(.92) brightness(.78); }
+body[data-stage="ai_curation"] #visual-backdrop { background-image:url("assets/generated/world-selection-gallery-v2.png"); filter:saturate(1.02) brightness(.82); }
 body[data-stage="companion_selection"] #visual-backdrop { background-image:url("assets/generated/museum-salon-romantic-v2.png"); filter:saturate(.92) brightness(1.12); }
 body[data-stage="summoning"] #visual-backdrop,
 body[data-stage="roundtable"] #visual-backdrop,
@@ -87,23 +87,60 @@ h2 { font-size: clamp(36px, 5vw, 72px); line-height: 1.02; max-width: 900px; }
 .world-node.locked { opacity:.55; cursor:default; }
 .world-node.locked:hover { transform:none; background:linear-gradient(180deg, transparent, rgba(255,255,255,.025)); }
 
-.companion-selection { display:grid; grid-template-columns:.78fr 1.22fr; gap:5vw; align-items:end; }
-.companion-intro { padding-bottom:68px; text-shadow:0 2px 30px rgba(0,0,0,.72); }
-.companion-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
-.companion-card { position:relative; min-height:390px; padding:22px; overflow:hidden; border:1px solid rgba(255,255,255,.22); background:linear-gradient(180deg,transparent 38%,rgba(20,14,16,.86)),var(--portrait) center/cover; text-align:left; cursor:pointer; transition:.45s cubic-bezier(.2,.8,.2,1); box-shadow:0 24px 70px rgba(26,15,17,.24); }
+.companion-selection { display:grid; grid-template-columns:.7fr 1.3fr; gap:4vw; align-items:center; }
+.companion-intro { padding-bottom:34px; text-shadow:0 2px 30px rgba(0,0,0,.72); }
+.companion-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+.companion-card { position:relative; min-height:235px; padding:14px; overflow:hidden; border:1px solid rgba(255,255,255,.22); background:linear-gradient(180deg,transparent 34%,rgba(20,14,16,.88)),var(--portrait) center/cover; text-align:left; cursor:pointer; transition:.45s cubic-bezier(.2,.8,.2,1); box-shadow:0 24px 70px rgba(26,15,17,.24); }
 .companion-card::after { content:""; position:absolute; inset:0; border:1px solid transparent; transition:.35s; }
 .companion-card:hover { transform:translateY(-8px); filter:saturate(1.08); }
 .companion-card.selected { transform:translateY(-12px); border-color:rgba(255,244,215,.8); box-shadow:0 30px 80px rgba(59,30,38,.34),0 0 0 4px rgba(255,244,215,.09); }
 .companion-card.selected::after { border-color:rgba(255,244,215,.5); inset:8px; }
 .companion-card small,.companion-card b,.companion-card em { position:relative; z-index:1; display:block; }
-.companion-card small { margin-top:260px; color:rgba(255,255,255,.62); font-size:8px; letter-spacing:.18em; }
-.companion-card b { margin-top:7px; font:22px/1.05 "Gilda Display",serif; }
+.companion-card small { margin-top:130px; color:rgba(255,255,255,.62); font-size:7px; letter-spacing:.18em; }
+.companion-card b { margin-top:6px; font:17px/1.05 "Gilda Display",serif; }
 .companion-card em { margin-top:8px; color:rgba(255,255,255,.5); font-size:8px; line-height:1.4; font-style:normal; }
 .model-readiness { position:relative; z-index:1; display:inline-flex; align-items:center; gap:6px; margin-top:12px; padding:5px 8px; border:1px solid rgba(236,222,184,.42); border-radius:999px; color:rgba(255,244,215,.86); background:rgba(22,14,17,.3); font-size:7px; letter-spacing:.12em; }
 .model-readiness::before { content:""; width:5px; height:5px; border-radius:50%; background:#d9c58d; box-shadow:0 0 10px rgba(217,197,141,.8); }
 .companion-check { position:absolute; z-index:2; right:14px; top:14px; width:32px; height:32px; display:grid; place-items:center; border-radius:50%; border:1px solid rgba(255,255,255,.58); background:rgba(20,12,15,.3); backdrop-filter:blur(10px); }
 .companion-footer { grid-column:1 / -1; display:flex; align-items:center; justify-content:flex-end; gap:24px; margin-top:5px; color:rgba(255,255,255,.6); font-size:8px; letter-spacing:.16em; }
 .companion-footer .primary-action:disabled { opacity:.35; cursor:not-allowed; }
+.question-reminder { margin:22px 0 0; max-width:620px; color:rgba(255,244,225,.9); font:24px/1.35 "Gilda Display",serif; }
+
+.question-stage { display:grid; grid-template-columns:.86fr 1.14fr; gap:7vw; align-items:center; }
+.question-stage-copy { text-shadow:0 3px 35px rgba(0,0,0,.8); }
+.life-question-form,.personal-answer-form { padding:30px; border:1px solid rgba(238,233,223,.24); background:rgba(8,6,10,.48); backdrop-filter:blur(18px); box-shadow:0 28px 90px rgba(0,0,0,.22); }
+.life-question-form label,.personal-answer-form label { display:block; margin-bottom:12px; color:var(--stage-accent); font-size:8px; letter-spacing:.22em; }
+.life-question-form textarea,.personal-answer-form textarea { display:block; width:100%; min-height:150px; resize:none; border:0; border-bottom:1px solid rgba(238,233,223,.28); outline:0; padding:8px 0 18px; background:transparent; color:var(--ivory); font:clamp(25px,3vw,42px)/1.2 "Gilda Display",serif; }
+.life-question-form textarea::placeholder,.personal-answer-form textarea::placeholder { color:rgba(238,233,223,.3); }
+.question-suggestions { display:flex; flex-wrap:wrap; gap:8px; margin-top:18px; }
+.question-suggestions button { padding:8px 11px; border:1px solid rgba(238,233,223,.18); background:transparent; color:var(--muted); font-size:8px; cursor:pointer; }
+.question-suggestions button:hover { border-color:var(--stage-accent); color:var(--ivory); }
+.life-question-form .primary-action,.personal-answer-form .primary-action { margin-top:24px; }
+
+.curation-stage { display:grid; grid-template-columns:.8fr 1.2fr; gap:6vw; align-items:center; }
+.curation-summary blockquote { margin:24px 0; font-size:25px; color:rgba(238,233,223,.72); }
+.curation-companions { display:flex; flex-wrap:wrap; gap:9px; }
+.curation-companions span { display:flex; align-items:center; gap:8px; padding:5px 10px 5px 5px; border:1px solid var(--hairline); font-size:7px; letter-spacing:.12em; }
+.curation-companions img { width:30px; height:30px; object-fit:cover; border-radius:50%; }
+.curation-route { border-top:1px solid var(--hairline); }
+.curation-route article { display:grid; grid-template-columns:72px 128px 1fr; gap:18px; align-items:center; min-height:134px; padding:12px 0; border-bottom:1px solid var(--hairline); }
+.curation-route article small { color:var(--stage-accent); font-size:7px; letter-spacing:.18em; }
+.curation-route article img { width:128px; height:104px; object-fit:cover; }
+.curation-route article b,.curation-route article span { display:block; }
+.curation-route article b { font:21px/1.15 "Gilda Display",serif; }
+.curation-route article span { margin-top:8px; color:var(--muted); font-size:8px; letter-spacing:.08em; }
+.curation-ready { display:flex; align-items:center; justify-content:space-between; gap:18px; padding-top:18px; }
+.curation-ready > span { color:rgba(238,233,223,.52); font-size:7px; letter-spacing:.16em; }
+
+.answer-stage { display:grid; grid-template-columns:.8fr 1.2fr; gap:6vw; align-items:center; }
+.personal-answer-form textarea { min-height:124px; font-size:clamp(22px,2.5vw,35px); }
+.answer-lenses { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:18px; }
+.answer-lens { min-height:94px; padding:13px; border:1px solid var(--hairline); background:transparent; text-align:left; cursor:pointer; }
+.answer-lens small,.answer-lens span { display:block; }
+.answer-lens small { color:var(--stage-accent); font-size:7px; }
+.answer-lens span { margin-top:10px; color:var(--muted); font:13px/1.25 "Gilda Display",serif; }
+.answer-lens.selected { border-color:var(--stage-accent); background:rgba(188,119,136,.16); }
+.answer-echo { margin:24px auto 0; max-width:620px; color:rgba(238,233,223,.86); font-size:clamp(22px,3vw,36px); }
 
 .gallery-scene { position:fixed; inset:0; width:100vw; max-width:none; min-height:100vh; }
 .gallery-viewport { position:absolute; inset:0; overflow:hidden; background:#ece7da; opacity:0; transition:opacity 1s ease; }
@@ -253,8 +290,8 @@ body[data-stage="world_exploration"] .footer { color:rgba(52,45,40,.58); }
 body[data-stage="world_exploration"] .wordmark,
 body[data-stage="world_exploration"] .quiet-button,
 body[data-stage="world_exploration"] .icon-button { color:#42382f; }
-body[data-stage="museum_void"] .wordmark,
-body[data-stage="world_selection"] .wordmark { text-shadow:0 0 28px rgba(201,170,114,.18); }
+body[data-stage="life_question"] .wordmark,
+body[data-stage="ai_curation"] .wordmark { text-shadow:0 0 28px rgba(201,170,114,.18); }
 
 @media (max-width: 760px) {
   .topbar,.footer { left:18px; right:18px; }
@@ -271,6 +308,12 @@ body[data-stage="world_selection"] .wordmark { text-shadow:0 0 28px rgba(201,170
   .companion-grid { grid-template-columns:repeat(3,minmax(130px,1fr)); overflow:auto; padding-bottom:12px; }
   .companion-card { min-height:270px; }
   .companion-card small { margin-top:160px; }
+  .question-stage,.curation-stage,.answer-stage { grid-template-columns:1fr; gap:24px; padding-top:62px; overflow:auto; }
+  .life-question-form,.personal-answer-form { padding:20px; }
+  .curation-route article { grid-template-columns:58px 92px 1fr; gap:10px; }
+  .curation-route article img { width:92px; height:78px; }
+  .curation-route article b { font-size:16px; }
+  .answer-lenses { grid-template-columns:1fr; }
   .gallery-title { left:18px; top:72px; }
   .gallery-title h2 { font-size:34px; }
   .collection-status { right:18px; top:72px; max-width:45vw; }

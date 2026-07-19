@@ -42,21 +42,19 @@ const performanceController = new PerformanceController({
 });
 
 const STAGES = [
-  "threshold", "museum_void", "world_selection", "companion_selection", "world_exploration",
-  "summoning", "roundtable", "decision", "world_transformation", "manifesto"
+  "threshold", "life_question", "companion_selection", "ai_curation", "world_exploration",
+  "decision", "world_transformation", "manifesto"
 ];
 
 const stageMeta = {
   threshold: ["00", "THRESHOLD", "#c9aa72"],
-  museum_void: ["01", "BETWEEN WORLDS", "#9e87aa"],
-  world_selection: ["02", "BORROWED EYES", "#7caaa9"],
-  companion_selection: ["03", "CHOOSE YOUR COMPANY", "#c999a9"],
-  world_exploration: ["04", "THE LIVING GALLERY", "#91bab1"],
-  summoning: ["05", "THE SUMMONING", "#b59bc0"],
-  roundtable: ["06", "SALON OUTSIDE TIME", "#c9aa72"],
-  decision: ["07", "THE CONTRADICTION", "#bc7788"],
-  world_transformation: ["08", "WORLD REWRITTEN", "#7faab7"],
-  manifesto: ["09", "YOUR IMPOSSIBLE WORLD", "#d1b677"]
+  life_question: ["01", "YOUR QUESTION", "#9e87aa"],
+  companion_selection: ["02", "CHOOSE YOUR COMPANY", "#c999a9"],
+  ai_curation: ["03", "AI THEME CURATION", "#7caaa9"],
+  world_exploration: ["04", "ACROSS TIME", "#91bab1"],
+  decision: ["05", "FORM YOUR ANSWER", "#bc7788"],
+  world_transformation: ["06", "DREAMING THE WORLD", "#7faab7"],
+  manifesto: ["07", "YOUR DREAM WORLD", "#d1b677"]
 };
 
 const state = {
@@ -67,6 +65,9 @@ const state = {
   dialogueIndex: 0,
   philosophy: { perception: 0, emotion: 0, invention: 0 },
   finalWorld: null,
+  userAnswer: "",
+  answerLens: null,
+  discussionCount: 0,
   audioEnabled: false,
   demoMode: new URLSearchParams(location.search).get("demo") === "true",
   performanceMode: "auto",
@@ -74,7 +75,7 @@ const state = {
   transformationStart: 0,
   transformationChoice: null,
   memories: new Set(),
-  selectedCompanions: new Set(["monet", "morisot"]),
+  selectedCompanions: new Set(),
   galleryArtworks: [...museumArtworks],
   focusedArtwork: museumArtworks[0]
 };
@@ -95,6 +96,12 @@ const questions = [
   "What is art supposed to do to a human being?",
   "Is suffering necessary for great art?",
   "Will AI expand human creativity or make artists unnecessary?"
+];
+
+const lifeQuestions = [
+  "What makes a life meaningful?",
+  "How do I live with uncertainty?",
+  "What should I keep, and what should I let go?"
 ];
 
 const dialogueSets = {
@@ -170,12 +177,10 @@ function updateMeter() {
 function render() {
   const views = {
     threshold: thresholdView,
-    museum_void: museumVoidView,
-    world_selection: worldSelectionView,
+    life_question: lifeQuestionView,
     companion_selection: companionSelectionView,
+    ai_curation: aiCurationView,
     world_exploration: worldExplorationView,
-    summoning: summoningView,
-    roundtable: roundtableView,
     decision: decisionView,
     world_transformation: transformationView,
     manifesto: manifestoView
@@ -190,9 +195,25 @@ function thresholdView() {
     <div class="threshold-copy">
       <p class="eyebrow">A LIVING ARCHIVE BEYOND TIME</p>
       <h1>The Impossible<br>Museum</h1>
-      <p class="lede">Enter a cultural memory where artists disagree—and your answer becomes part of the architecture.</p>
-      <div class="action-row"><button class="orb-action" data-action="enter" aria-label="Enter the museum"><span>ENTER</span></button><span class="gesture-hint">MOVE TO LOOK · CLICK TO CROSS</span></div>
+      <p class="lede">Bring one question about your life. Walk through art with the minds you choose, then turn your answer into a world.</p>
+      <div class="action-row"><button class="orb-action" data-action="enter" aria-label="Begin with a life question"><span>BEGIN</span></button><span class="gesture-hint">ONE QUESTION · ONE CONTINUOUS JOURNEY</span></div>
     </div>
+  </section>`;
+}
+
+function lifeQuestionView() {
+  return `<section class="scene question-stage">
+    <div class="question-stage-copy">
+      <p class="eyebrow">01 / BEGIN WITH YOUR LIFE</p>
+      <h2>What question are you carrying?</h2>
+      <p class="lede">There is no correct question. The museum will use it as the curatorial thread connecting every artwork, companion and space.</p>
+    </div>
+    <form id="lifeQuestionForm" class="life-question-form">
+      <label for="lifeQuestion">YOUR QUESTION</label>
+      <textarea id="lifeQuestion" maxlength="240" placeholder="What makes a life meaningful?" required>${escapeHtml(state.currentQuestion || "")}</textarea>
+      <div class="question-suggestions">${lifeQuestions.map(question => `<button type="button" data-life-question="${escapeHtml(question)}">${escapeHtml(question)}</button>`).join("")}</div>
+      <button class="primary-action" type="submit">CHOOSE WHO WALKS WITH ME <span>→</span></button>
+    </form>
   </section>`;
 }
 
@@ -221,18 +242,48 @@ function worldSelectionView() {
 function companionSelectionView() {
   const selectable = characters.filter(character => character.portrait);
   return `<section class="scene companion-selection">
-    <div class="companion-intro"><p class="eyebrow">03 / INVITE UP TO THREE MINDS</p><h2>Who will walk the museum with you?</h2><p class="lede">Choose real historical portraits with public-domain sources. In the gallery, each becomes an interpretive AI companion—not a clone or authentic quotation.</p></div>
+    <div class="companion-intro"><p class="eyebrow">02 / INVITE UP TO THREE MINDS</p><h2>Who should challenge your question?</h2><p class="question-reminder">“${escapeHtml(state.currentQuestion)}”</p><p class="lede">Choose artists and thinkers whose different ways of seeing can accompany you through the exhibition.</p></div>
     <div class="companion-grid">${selectable.map(character => `<button class="companion-card ${state.selectedCompanions.has(character.id) ? "selected" : ""}" data-companion="${character.id}" style="--portrait:url('${character.portrait}')"><span class="companion-check">${state.selectedCompanions.has(character.id) ? "✓" : "+"}</span><small>INVITE</small><b>${character.fullName}</b><em>AI interpretation · public-domain portrait</em>${character.turnaround ? `<span class="model-readiness">4-VIEW 3D INPUT READY</span>` : ""}</button>`).join("")}</div>
-    <div class="companion-footer"><span id="companionCount">${state.selectedCompanions.size} / 3 SELECTED</span><button class="primary-action" data-action="enter-gallery" ${state.selectedCompanions.size ? "" : "disabled"}>ENTER TOGETHER <span>→</span></button></div>
+    <div class="companion-footer"><span id="companionCount">${state.selectedCompanions.size} / 3 SELECTED</span><button class="primary-action" data-action="curate-exhibition" ${state.selectedCompanions.size ? "" : "disabled"}>LET AI CURATE <span>→</span></button></div>
+  </section>`;
+}
+
+function curationData() {
+  const question = (state.currentQuestion || "").toLowerCase();
+  if (/meaning|purpose|worth/.test(question)) return ["The Architecture of a Meaningful Life", ["Attention", "Belonging", "What Remains"]];
+  if (/uncertain|unknown|future|fear/.test(question)) return ["The Beauty of Not Knowing", ["Thresholds", "Changing Light", "Trusting the Unfinished"]];
+  if (/keep|let go|loss|leave/.test(question)) return ["What Memory Chooses to Keep", ["Attachment", "Transformation", "Release"]];
+  if (/love|relationship|alone|belong/.test(question)) return ["The Distance Between Two People", ["Recognition", "Intimacy", "Freedom"]];
+  return ["A Museum Built Around Your Question", ["How You See", "What You Feel", "What You Can Imagine"]];
+}
+
+function aiCurationView() {
+  const [title, chapters] = curationData();
+  const companions = selectedCompanionRecords();
+  return `<section class="scene curation-stage">
+    <div class="curation-summary">
+      <p class="eyebrow">03 / AI THEME CURATION COMPLETE</p>
+      <h2>${escapeHtml(title)}</h2>
+      <blockquote>“${escapeHtml(state.currentQuestion)}”</blockquote>
+      <div class="curation-companions">${companions.map(character => `<span><img src="${character.portrait}" alt=""/>${character.name}</span>`).join("")}</div>
+    </div>
+    <div class="curation-route" aria-label="Curated exhibition route">
+      ${chapters.map((chapter, index) => {
+        const artwork = museumArtworks[index % museumArtworks.length];
+        return `<article><small>CHAPTER 0${index + 1}</small><img src="${artwork.image}" alt="${escapeHtml(artwork.title)}"/><div><b>${escapeHtml(chapter)}</b><span>${escapeHtml(artwork.title)} · ${escapeHtml(artwork.artist)}</span></div></article>`;
+      }).join("")}
+      <div class="curation-ready"><span>CURATORIAL SPINE READY</span><button class="primary-action" data-action="enter-gallery">ENTER THE EXHIBITION <span>→</span></button></div>
+    </div>
   </section>`;
 }
 
 function worldExplorationView() {
   const companions = selectedCompanionRecords();
   const focused = state.focusedArtwork || state.galleryArtworks[0];
+  const [curationTitle] = curationData();
   return `<section class="scene gallery-scene">
     <div class="gallery-viewport" id="museum3d">
-      <div class="gallery-title"><p class="eyebrow">04 / THE LIVING GALLERY</p><h2>Walk into the collection.</h2><span>DRAG TO LOOK · W A S D TO WALK · CLICK AN ARTWORK</span></div>
+      <div class="gallery-title"><p class="eyebrow">04 / THE CROSS-TIME EXHIBITION</p><h2>${escapeHtml(curationTitle)}</h2><span>DRAG TO LOOK · W A S D TO WALK · CLICK AN ARTWORK</span></div>
       <div class="collection-status"><i></i><span id="collectionStatus">OPEN ACCESS COLLECTION · LOCAL CURATION</span></div>
       <div class="companion-dock" aria-label="Your museum companions">${companions.map(character => `<div class="companion-chip" title="${character.fullName}"><img src="${character.portrait}" alt="${character.fullName}"/><span>${character.name}</span></div>`).join("")}</div>
       <aside class="artwork-inspector" id="artworkInspector">
@@ -244,10 +295,10 @@ function worldExplorationView() {
       </aside>
       <section class="conversation-dock" aria-label="Talk with your museum companions">
         <div class="conversation-head"><div><small>WALKING CONVERSATION</small><b id="voiceState">LOCAL PREVIEW</b></div><button class="mic-button" data-action="voice-listen" aria-label="Speak to your companions"><span>◉</span> TALK</button></div>
-        <div class="conversation-log" id="conversationLog"><p><b>${companions[0]?.name || "MUSE"}</b> Ask us what this room changes about the way you see.</p></div>
-        <form id="galleryQuestionForm" class="conversation-form"><input id="galleryQuestion" autocomplete="off" placeholder="Ask the group while you walk…" aria-label="Question for your companions"/><button>ASK</button></form>
+        <div class="conversation-log" id="conversationLog"><p><b>${companions[0]?.name || "MUSE"}</b> Look closely at a work, then ask how it changes your original question.</p></div>
+        <form id="galleryQuestionForm" class="conversation-form"><input id="galleryQuestion" autocomplete="off" placeholder="Discuss this artwork with your companions…" aria-label="Question for your companions"/><button>ASK</button></form>
       </section>
-      <button class="salon-next" data-action="summon">SUMMON THE FULL SALON <span>→</span></button>
+      <button class="salon-next" data-action="form-answer">FORM MY ANSWER <span>→</span></button>
     </div>
   </section>`;
 }
@@ -273,11 +324,19 @@ function dialogueView() {
 }
 
 function decisionView() {
-  return `<section class="scene"><p class="eyebrow">07 / SOCRATES ASKS YOU</p><h2>If art can alter reality, what responsibility should it carry?</h2><div class="choice-grid">${choices.map((choice,i)=>`<button class="choice" data-choice="${choice.id}"><small>0${i+1}</small><span>${choice.label}</span></button>`).join("")}</div></section>`;
+  return `<section class="scene answer-stage">
+    <div class="answer-prompt"><p class="eyebrow">05 / AFTER THE EXHIBITION</p><h2>What is your answer now?</h2><p class="question-reminder">“${escapeHtml(state.currentQuestion)}”</p><p class="lede">Your answer does not need to be final. It only needs to be true enough to become a world.</p></div>
+    <form id="personalAnswerForm" class="personal-answer-form">
+      <label for="personalAnswer">MY ANSWER</label>
+      <textarea id="personalAnswer" maxlength="420" placeholder="I think…" required>${escapeHtml(state.userAnswer)}</textarea>
+      <div class="answer-lenses">${choices.map((choice,i)=>`<button type="button" class="answer-lens ${state.answerLens === choice.id ? "selected" : ""}" data-answer-choice="${choice.id}" data-answer-text="${escapeHtml(choice.label)}"><small>0${i+1}</small><span>${escapeHtml(choice.label)}</span></button>`).join("")}</div>
+      <button class="primary-action" type="submit">GENERATE MY DREAM WORLD <span>→</span></button>
+    </form>
+  </section>`;
 }
 
 function transformationView() {
-  return `<section class="scene transformation"><p class="eyebrow">08 / YOUR ANSWER HAS ENTERED THE WORLD</p><div class="transformation-mark"></div><h1>The museum is<br>rewriting itself.</h1><p class="lede transformation-copy" id="transformationCopy">Sound falls away. Your chosen idea enters the salon ring.</p></section>`;
+  return `<section class="scene transformation"><p class="eyebrow">06 / YOUR ANSWER HAS ENTERED THE WORLD</p><div class="transformation-mark"></div><h1>Your Dream World<br>is taking form.</h1><p class="lede transformation-copy" id="transformationCopy">The exhibition dissolves. Your words become light, material and space.</p></section>`;
 }
 
 function finalWorldData() {
@@ -294,7 +353,7 @@ function finalWorldData() {
 function manifestoView() {
   const [title,copy] = finalWorldData();
   state.finalWorld = title;
-  return `<section class="scene manifesto"><div class="manifesto-card"><p class="eyebrow">YOUR IMPOSSIBLE WORLD</p><h2>${title}</h2><p class="manifesto-copy">${copy}</p><div class="score-row">${Object.entries(state.philosophy).map(([key,value])=>`<span>${key.toUpperCase()}<b>${String(value).padStart(2,"0")}</b></span>`).join("")}</div><div class="action-row" style="justify-content:center"><button class="primary-action" data-action="reset">ENTER AGAIN</button></div></div></section>`;
+  return `<section class="scene manifesto"><div class="manifesto-card"><p class="eyebrow">07 / YOUR PERSONAL DREAM WORLD</p><h2>${title}</h2><blockquote class="answer-echo">“${escapeHtml(state.userAnswer)}”</blockquote><p class="manifesto-copy">${copy}</p><div class="score-row">${Object.entries(state.philosophy).map(([key,value])=>`<span>${key.toUpperCase()}<b>${String(value).padStart(2,"0")}</b></span>`).join("")}</div><div class="action-row" style="justify-content:center"><button class="primary-action" data-action="reset">BEGIN WITH A NEW QUESTION</button></div></div></section>`;
 }
 
 function bindActions() {
@@ -311,8 +370,18 @@ function bindActions() {
     button.querySelector(".companion-check").textContent = state.selectedCompanions.has(id) ? "✓" : "+";
     const count = document.querySelector("#companionCount");
     if (count) count.textContent = `${state.selectedCompanions.size} / 3 SELECTED`;
-    const enter = experience.querySelector("[data-action='enter-gallery']");
+    const enter = experience.querySelector("[data-action='curate-exhibition']");
     if (enter) enter.disabled = state.selectedCompanions.size === 0;
+  }));
+  experience.querySelectorAll("[data-life-question]").forEach(button => button.addEventListener("click", () => {
+    const input = experience.querySelector("#lifeQuestion");
+    if (input) input.value = button.dataset.lifeQuestion;
+  }));
+  experience.querySelectorAll("[data-answer-choice]").forEach(button => button.addEventListener("click", () => {
+    state.answerLens = button.dataset.answerChoice;
+    const input = experience.querySelector("#personalAnswer");
+    if (input) input.value = button.dataset.answerText;
+    experience.querySelectorAll("[data-answer-choice]").forEach(option => option.classList.toggle("selected", option === button));
   }));
   experience.querySelectorAll("[data-memory]").forEach(button => button.addEventListener("click", () => {
     state.memories.add(button.dataset.memory);
@@ -330,19 +399,32 @@ function bindActions() {
   questionForm?.addEventListener("submit", event => {
     event.preventDefault();
     const input = experience.querySelector("#galleryQuestion");
+    if (input?.value.trim()) state.discussionCount += 1;
     voiceConversation?.ask(input?.value || "");
     if (input) input.value = "";
+  });
+  experience.querySelector("#lifeQuestionForm")?.addEventListener("submit", event => {
+    event.preventDefault();
+    const input = experience.querySelector("#lifeQuestion");
+    state.currentQuestion = input?.value.trim() || lifeQuestions[0];
+    setStage("companion_selection");
+  });
+  experience.querySelector("#personalAnswerForm")?.addEventListener("submit", event => {
+    event.preventDefault();
+    const input = experience.querySelector("#personalAnswer");
+    const answer = input?.value.trim();
+    if (answer) choose(state.answerLens, answer);
   });
 }
 
 function act(action) {
   const actions = {
-    enter: () => setStage("museum_void"),
-    "discover-worlds": () => setStage("world_selection"),
+    enter: () => setStage("life_question"),
+    "curate-exhibition": () => setStage("ai_curation"),
     "enter-gallery": () => setStage("world_exploration"),
     "close-inspector": () => document.querySelector("#artworkInspector")?.classList.remove("visible"),
     "voice-listen": () => voiceConversation?.listen(),
-    summon: () => setStage("summoning"),
+    "form-answer": () => setStage("decision"),
     "open-salon": () => setStage("roundtable"),
     "next-dialogue": nextDialogue,
     reset,
@@ -371,6 +453,7 @@ async function initMuseumExperience() {
   voiceConversation = new VoiceConversation({
     context: () => ({
       companions: selectedCompanionRecords().map(({ id, fullName }) => ({ id, name: fullName })),
+      lifeQuestion: state.currentQuestion,
       artwork: state.focusedArtwork ? { title: state.focusedArtwork.title, artist: state.focusedArtwork.artist, date: state.focusedArtwork.date } : null
     }),
     onState: updateVoiceState,
@@ -457,12 +540,14 @@ function nextDialogue() {
   }
 }
 
-function choose(id) {
+function choose(id, answer = "") {
   const choice = choices.find(item => item.id === id);
-  for (const key of Object.keys(state.philosophy)) state.philosophy[key] += choice.delta[key];
+  const delta = choice?.delta || { perception:1, emotion:1, invention:1 };
+  for (const key of Object.keys(state.philosophy)) state.philosophy[key] += delta[key];
+  state.userAnswer = answer;
   updateMeter();
-  particleMode = id === "invention" ? "fracture" : id === "emotion" ? "turbulence" : "mist";
-  state.transformationChoice = id;
+  particleMode = id === "invention" ? "fracture" : id === "emotion" ? "turbulence" : id === "perception" ? "mist" : "hybrid";
+  state.transformationChoice = id || "hybrid";
   state.transformationStart = globalThis.performance.now();
   setStage("world_transformation");
   burst(innerWidth/2, innerHeight/2, stageMeta.world_transformation[2], performanceController.config().particles * .18);
@@ -477,16 +562,16 @@ function scheduleTransformation() {
     const node = document.querySelector("#transformationCopy");
     if (node) node.textContent = text;
   }, duration * ratio));
-  write(.20, "The active perspective expands. Character memories leave their seats.");
-  write(.46, "Architecture dissolves. A second artistic system passes through the darkness.");
-  write(.73, "Particles reassemble around the philosophy you chose.");
+  write(.20, "The voices of your companions recede. Your own answer remains.");
+  write(.46, "The exhibition architecture dissolves into color, weather and memory.");
+  write(.73, "A personal landscape assembles around the meaning of your words.");
   transformationTimers.push(setTimeout(() => setStage("manifesto"), duration));
 }
 
 function reset() {
   transformationTimers.forEach(clearTimeout);
   teardownMuseumExperience();
-  Object.assign(state, { stage:"threshold", selectedPortal:null, activeSpeaker:null, currentQuestion:null, dialogueIndex:0, philosophy:{perception:0,emotion:0,invention:0}, finalWorld:null, transformationStart:0, transformationChoice:null, selectedCompanions:new Set(["monet","morisot"]), galleryArtworks:[...museumArtworks], focusedArtwork:museumArtworks[0] });
+  Object.assign(state, { stage:"threshold", selectedPortal:null, activeSpeaker:null, currentQuestion:null, dialogueIndex:0, philosophy:{perception:0,emotion:0,invention:0}, finalWorld:null, userAnswer:"", answerLens:null, discussionCount:0, transformationStart:0, transformationChoice:null, selectedCompanions:new Set(), galleryArtworks:[...museumArtworks], focusedArtwork:museumArtworks[0] });
   particleMode = "threshold";
   setStage("threshold");
 }
@@ -782,7 +867,7 @@ function drawVignette() {
 addEventListener("resize",resize);
 addEventListener("pointermove",event=>{pointer.x=event.clientX;pointer.y=event.clientY;});
 addEventListener("keydown",event=>{
-  const keys={"1":"threshold","2":"museum_void","3":"world_exploration","4":"summoning","5":"roundtable","6":"world_transformation","7":"manifesto"};
+  const keys={"1":"threshold","2":"life_question","3":"companion_selection","4":"ai_curation","5":"world_exploration","6":"decision","7":"manifesto"};
   if(keys[event.key]) setStage(keys[event.key]);
   if(event.key.toLowerCase()==="r") reset();
   if(event.key.toLowerCase()==="m") toggleAudio();
