@@ -128,6 +128,7 @@ export const WORLDS = {
     splatUrl: `${A}/grand-conservatory-with-lush-gardens.spz`,
     colliderUrl: `${A}/grand-conservatory-with-lush-gardens-collider.glb`,
     render: "splat",
+    worldScale: 1.7, // open worlds tuned like the finale ones (feedback #11): world grand, people human-scale
     metric: { scale: 2.4943, ty: 1.4334 },
     profile: { spawn: { x: -1.6, z: -4.8 }, groundY: 0.9, bounds: { minX: -47.15, maxX: 41.28, minZ: -56.41, maxZ: 39.15 }, yaw: 0, cameraFar: 400 },
     enclosed: false,
@@ -143,6 +144,7 @@ export const WORLDS = {
     splatUrl: `${A}/mexican-courtyard-bedroom-fantasy.spz`,
     colliderUrl: `${A}/mexican-courtyard-bedroom-fantasy-collider.glb`,
     render: "splat",
+    worldScale: 1.7, // open worlds tuned like the finale ones (feedback #11): world grand, people human-scale
     metric: { scale: 2.9798, ty: 1.5802 },
     profile: { spawn: { x: 2.21, z: -1.23 }, groundY: 0.1, bounds: { minX: -21.02, maxX: 23.04, minZ: -22.3, maxZ: 17.39 }, yaw: 0, cameraFar: 400 },
     enclosed: false,
@@ -158,6 +160,7 @@ export const WORLDS = {
     splatUrl: `${A}/enchanted-water-garden-sanctuary.spz`,
     colliderUrl: `${A}/enchanted-water-garden-sanctuary-collider.glb`,
     render: "splat",
+    worldScale: 1.7, // open worlds tuned like the finale ones (feedback #11): world grand, people human-scale
     metric: { scale: 1.7552, ty: 1.1188 },
     profile: { spawn: { x: 3.2, z: -17.58 }, groundY: 1.1, bounds: { minX: -6.36, maxX: 23.3, minZ: -41.25, maxZ: 16.21 }, yaw: 0, cameraFar: 400 },
     enclosed: false,
@@ -173,6 +176,7 @@ export const WORLDS = {
     splatUrl: `${A}/dreamlike-coastal-villa-gardens.spz`,
     colliderUrl: `${A}/dreamlike-coastal-villa-gardens-collider.glb`,
     render: "splat",
+    worldScale: 1.7, // open worlds tuned like the finale ones (feedback #11): world grand, people human-scale
     metric: { scale: 2.3438, ty: 1.6394 },
     profile: { spawn: { x: -3.94, z: 0.0 }, groundY: 5.6, bounds: { minX: -30.63, maxX: 21.07, minZ: -39.06, maxZ: 33.44 }, yaw: 0, cameraFar: 400 },
     enclosed: false,
@@ -187,10 +191,11 @@ export const WORLDS = {
     meshUrl: `${A}/sunlit-palace-gardens-mesh.glb`,
     splatUrl: `${A}/sunlit-palace-gardens.spz`,
     colliderUrl: `${A}/sunlit-palace-gardens-collider.glb`,
-    // Feedback #14: the splat renders as a smeared ground layer under a black upper void.
-    // This world has the same-grade texture mesh as shimmering-spheres (which is rock solid),
-    // so render the mesh instead — the fastest of the five open worlds to salvage.
-    render: "mesh",
+    // Back on splat: the 184MB texture mesh spreads its texels over a +-75m garden and reads
+    // BLURRIER up close than the splat (user report); the splat is upright since the
+    // double-flip fix and renders at DPR 2 now.
+    render: "splat",
+    worldScale: 1.7, // open worlds tuned like the finale ones (feedback #11): world grand, people human-scale
     metric: { scale: 1.7981, ty: 1.1657 },
     profile: { spawn: { x: -14.79, z: 39.91 }, groundY: 2.8, bounds: { minX: -75.29, maxX: 68.24, minZ: 1.12, maxZ: 82.68 }, yaw: 0, cameraFar: 400 },
     enclosed: false,
