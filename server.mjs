@@ -374,7 +374,11 @@ const SHARED_PERSPECTIVE_RULES =
   "Answer the visitor's specific question rather than restating the artwork. " +
   "Never open with a bare deictic imperative (\"Look\", \"Notice\", \"See\", \"Begin\", \"Observe\") " +
   "— every voice reaches for it, so it identifies none of them. Open as your shape demands. " +
-  "Reply in English, under 55 words.";
+  // 50, not 55. The three speech acts each want a little more room than a plain observation did,
+  // and restating 55 while hoping produced 4 breaches in 30 replies — one at 59 words and three
+  // landing on exactly 55, which is not "under 55". Asking for 50 leaves the slack inside the
+  // constraint instead of outside it.
+  "Reply in English, under 50 words.";
 
 // The vocabulary lists are quarantined per master because this is a single call that can see all
 // three of them. Without the quarantine a term leaks into a neighbouring voice whenever it also
