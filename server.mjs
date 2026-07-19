@@ -11,20 +11,41 @@ import { EFFECT_VOCABULARY, describeInvalidEffect } from "./config/effects.js";
 const LLM_API_KEY = process.env.LLM_API_KEY || process.env.OPENAI_API_KEY;
 const LLM_BASE_URL = (process.env.LLM_BASE_URL || "https://api.openai.com").replace(/\/+$/, "");
 
-// Model choice is the AC3 latency lever, not an aesthetic preference.
+// Model choice, settled by a head-to-head rather than by preference. `gpt-5.6` is slower and we
+// ship it anyway.
 //
-// AC3 budgets a three-perspective turn at P50 <= 3.0s. `gpt-5.6` cannot reach it on this proxy:
-// measured end-to-end it decodes at roughly 25 output tokens/second, and three ~55-word readings
-// are ~250 output tokens, so the call floors out near 9-12s. The cost is decode throughput, not
-// hidden reasoning — `reasoning.effort: "none"` was measured and moved the number by well under a
-// second, because gpt-5.6 was already spending only ~40 reasoning tokens here. Shortening the word
-// cap does not rescue it either: a SINGLE one-perspective gpt-5.6 call, shortest prompt tested,
-// never came in under 4.4s. No arrangement of an ~25 tok/s model meets a 3s budget.
+// LATENCY (n=26 per model, strictly interleaved sample-by-sample on the shipping arm B, one request
+// in flight, a distinct question every round to defeat upstream prompt caching, 0 discards):
 //
-// `gpt-5.3-codex-spark` serves the identical strict-json_schema request in ~2.3-2.8s on the same
-// proxy, same prompts, same three-perspective payload. It is a throughput difference, not a
-// quality tradeoff dressed up as one — the arm/schema architecture below is unchanged.
-const DEFAULT_LLM_MODEL = "gpt-5.3-codex-spark";
+//              P50      P95      max      min
+//   gpt-5.6   11.10s   16.40s   16.52s   8.06s
+//   spark      4.58s   10.83s   13.27s   2.48s
+//
+// Paired within-round delta: median +6.52s, 5.6 slower in 25 of 26 rounds, ratio 2.41x. Absolutes
+// are inflated — 11 sibling servers were hitting the same proxy during the run — so treat the RATIO
+// as durable and the absolutes as a pessimistic ceiling.
+//
+// WHY THE SLOWER MODEL WINS ANYWAY — spark has a grounding defect on a demo artwork. Its Monet
+// inverts The Bedroom's palette ("the blue bed and yellow walls"; the bed is chrome-yellow, the
+// walls blue-violet), in 2 of 4 Bedroom cases, and it contradicts itself inside one panel — its own
+// van Gogh says "clotted, impasto chrome-yellow" two readings later. Three independent blind judges
+// caught it without being told which model wrote what. Two objective metrics corroborate: spark's
+// ONLY two own-vocabulary misses in 24 texts are both bedroom/Monet (5.6: zero misses), and spark
+// collapses all three masters onto a single `effect` in 4 of 8 cases — all four Bedroom cases pick
+// "fracture" — against 1 of 8 for 5.6. The spec sells constrained visual effects as the proof that
+// the demo is not a mock, so three masters triggering one effect is a product failure, not a nit.
+//
+// Both models clear the AC4 distinctiveness bar comfortably (max pairwise Jaccard 0.20 for 5.6,
+// 0.12 for spark, against a 0.30 bar) with zero cross-contamination, so distinctiveness does not
+// decide this. Grounding does.
+//
+// THE OLD "gpt-5.6 IS DEAD, 6/6 502" FINDING IS RETIRED. Both its premises are gone: that was arm A
+// (one 5303-char call) under a 15s timeout. On arm B (three ~1800-char concurrent calls) at 45s,
+// 68 requests across both models produced zero errors and zero samples within 80% of the cap.
+//
+// Also: LATEST_PRODUCT_SPEC.md names GPT-5.6 in eleven places including the demo-script beat at
+// 2:10-2:35. Conformance is free here, so we take it.
+const DEFAULT_LLM_MODEL = "gpt-5.6";
 const LLM_MODEL = process.env.LLM_MODEL || process.env.OPENAI_MODEL || DEFAULT_LLM_MODEL;
 
 const port = Number(process.env.PORT || 4173);
@@ -840,9 +861,15 @@ createServer(async (request, response) => {
     : `env, OVERRIDING default ${DEFAULT_LLM_MODEL}`;
   console.log(`[llm] model=${LLM_MODEL} (${source}) timeout=${LLM_TIMEOUT_MS}ms`);
   if (LLM_MODEL !== DEFAULT_LLM_MODEL) {
+    // The warning exists because an LLM_MODEL line in .env once silently overrode this constant and
+    // the only symptom was every dialogue request 502ing — an override must never be invisible.
+    // Its old text ("may time out on every dialogue request") is retired: measured on arm B at a
+    // 45s cap, neither candidate model came within 80% of the timeout across 68 requests.
     console.warn(
-      `[llm] WARNING: ${DEFAULT_LLM_MODEL} is the only model measured to fit the ${LLM_TIMEOUT_MS}ms budget ` +
-      `on the real three-perspective payload. ${LLM_MODEL} may time out on every dialogue request.`
+      `[llm] WARNING: overriding the measured default (${DEFAULT_LLM_MODEL}). ` +
+      `${DEFAULT_LLM_MODEL} was chosen on a head-to-head for artwork grounding and effect variety, ` +
+      `not for speed — it is the SLOWER candidate. Verify ${LLM_MODEL} on the demo artworks before ` +
+      `relying on it, and re-time the ?demo=true path.`
     );
   }
 });
