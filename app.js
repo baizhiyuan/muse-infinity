@@ -7,6 +7,7 @@ import { museumArtworks, salonParticipants } from "./config/museumAssets.js";
 import { Museum3D } from "./lib/museum3d.js";
 import { loadOpenAccessArtworks } from "./services/museumCollections.js";
 import { VoiceConversation } from "./services/voiceConversation.js";
+import { getWorld, listWorlds, DEFAULT_WORLD_KEY } from "./config/worlds.js";
 
 const canvas = document.querySelector("#world");
 const ctx = canvas.getContext("2d", { alpha: false });
@@ -216,15 +217,15 @@ function museumVoidView() {
   </section>`;
 }
 
+const WORLD_TINTS = ["#c6a54a", "#c69f4e", "#b98cc0", "#7fb069", "#79b7b0", "#d98c7a", "#8fa9c9", "#c89ba1", "#6db3c9"];
+
 function worldSelectionView() {
-  const worlds = [
-    ["light","WORLD OF LIGHT","MONET","#79b7b0",false,museumArtworks[0]], ["fracture","WORLD OF FRACTURE","PICASSO","#a65a58",true,null],
-    ["infinity","WORLD OF THE UNSEEN","HILMA","#a786b1",true,null], ["emotion","WORLD OF EMOTION","VAN GOGH","#c69f4e",true,museumArtworks[1]],
-    ["identity","WORLD OF MEMORY","MORISOT","#c89ba1",true,null]
-  ];
+  // Every Marble world we have (config/worlds.js) is an independent, selectable exhibition
+  // space — walkable enclosed rooms first, open worlds after.
+  const worlds = listWorlds();
   return `<section class="scene">
-    <p class="eyebrow">02 / CHOOSE A PERCEPTION</p><h2>Whose eyes do you want to borrow?</h2>
-    <div class="world-grid">${worlds.map(([id,title,artist,color,locked,artwork]) => `<button class="world-node ${locked?"locked":""}" style="--node-color:${color}; ${artwork ? `--artwork:url('${artwork.image}')` : ""}" ${locked?"disabled aria-disabled='true'":`data-world="${id}"`}><small>${artist}${locked?" / PREVIEW":" / ENTER"}</small><b>${title}</b>${artwork ? `<em>${artwork.title}</em>` : ""}</button>`).join("")}</div>
+    <p class="eyebrow">02 / CHOOSE A WORLD</p><h2>Which world will hold your exhibition?</h2>
+    <div class="world-grid">${worlds.map((w, i) => `<button class="world-node${w.recommended ? " recommended" : ""}" style="--node-color:${WORLD_TINTS[i % WORLD_TINTS.length]}" data-world="${w.key}"><small>${w.enclosed ? "WALKABLE ROOM" : "OPEN WORLD"}${w.recommended ? " · RECOMMENDED" : ""}</small><b>${w.displayName}</b><em>${w.blurb}</em></button>`).join("")}</div>
   </section>`;
 }
 
@@ -243,6 +244,7 @@ function worldExplorationView() {
   return `<section class="scene gallery-scene">
     <div class="gallery-viewport" id="museum3d">
       <div class="gallery-title"><p class="eyebrow">04 / THE LIVING GALLERY</p><h2>Walk into the collection.</h2><span>DRAG TO LOOK · W A S D TO WALK · CLICK AN ARTWORK</span></div>
+      <div id="worldStatus" style="position:absolute;top:64px;left:24px;z-index:20;font:600 11px/1.4 ui-monospace,monospace;letter-spacing:.08em;color:#9fe3d0;background:rgba(0,0,0,.5);padding:6px 10px;border-radius:6px;pointer-events:none">WORLD · …</div>
       <div class="collection-status"><i></i><span id="collectionStatus">OPEN ACCESS COLLECTION · LOCAL CURATION</span></div>
       <div class="companion-dock" aria-label="Your museum companions">${companions.map(character => `<div class="companion-chip" title="${character.fullName}"><img src="${character.portrait}" alt="${character.fullName}"/><span>${character.name}</span></div>`).join("")}</div>
       <aside class="artwork-inspector" id="artworkInspector">
@@ -366,20 +368,32 @@ function selectedCompanionRecords() {
   return characters.filter(character => state.selectedCompanions.has(character.id));
 }
 
+// Resolve the world to load: the card the visitor picked (state.selectedPortal holds the
+// world key), with optional URL overrides — ?world=<key> and ?render=mesh|splat — for A/B.
+function resolveSelectedWorld() {
+  const params = new URLSearchParams(location.search);
+  const base = getWorld(params.get("world") || state.selectedPortal || DEFAULT_WORLD_KEY);
+  const render = params.get("render");
+  return render === "mesh" || render === "splat" ? { ...base, render } : base;
+}
+
 async function initMuseumExperience() {
   const container = document.querySelector("#museum3d");
   if (!container || state.stage !== "world_exploration") return;
   teardownMuseumExperience();
+  const activeWorld = resolveSelectedWorld();
+  const setWorldStatus = (text) => { const el = document.querySelector("#worldStatus"); if (el) el.textContent = text; };
   museum3D = new Museum3D({
     container,
     artworks: state.galleryArtworks,
     companions: selectedCompanionRecords(),
     onArtworkFocus: focusArtwork,
     onReady: () => container.classList.add("ready"),
-    worldSplatUrl: "/assets/worlds/monet.spz",
-    worldMeshUrl: "/assets/worlds/sunlit-mesh.glb"
+    onWorldReady: ({ key, render }) => setWorldStatus(`${key} · ${render} · READY`),
+    world: activeWorld
   });
   museum3D.mount();
+  setWorldStatus(`${activeWorld.key} · ${activeWorld.render || (activeWorld.meshUrl ? "mesh" : "splat")} · LOADING…`);
   voiceConversation = new VoiceConversation({
     context: () => ({
       companions: selectedCompanionRecords().map(({ id, fullName }) => ({ id, name: fullName })),
