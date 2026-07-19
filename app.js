@@ -381,6 +381,10 @@ function worldExplorationView() {
         <a id="focusedArtworkSource" href="${focused.sourceUrl}" target="_blank" rel="noreferrer">VIEW MUSEUM RECORD ↗</a>
       </aside>
       <div class="art-dialogue" id="artDialogue" hidden></div>
+      <div class="tour-guide" id="tourGuide" hidden aria-live="polite">
+        <span class="tour-arrow" id="tourArrow" aria-hidden="true">↑</span>
+        <div class="tour-copy"><small id="tourStep"></small><b id="tourTitle"></b><span id="tourHint"></span></div>
+      </div>
       <nav class="scene-navigator" aria-label="Exhibition scenes">
         <button class="scene-arrow" data-scene-direction="-1" aria-label="Previous scene" title="Previous scene" ${index === 0 ? "disabled" : ""}>←</button>
         <div class="scene-progress"><span id="sceneCounter">${pad(index + 1)} / ${pad(total)}</span><div>${exhibitionScenes.map((item, i) => `<button data-scene-index="${i}" class="${i === index ? "active" : ""}" aria-label="Go to ${escapeHtml(item.title)}"></button>`).join("")}</div></div>
@@ -653,6 +657,7 @@ async function initMuseumExperience() {
     onCompanionSelect: selectCompanion,
     onReady: () => container.classList.add("ready"),
     onWorldReady: ({ key, render }) => { setWorldStatus(`${key} · ${render} · READY`); dismissWorldVeil(); },
+    onTourUpdate: updateTourGuide,
     world: activeWorld
   });
   museum3D.mount();
@@ -678,8 +683,27 @@ async function initMuseumExperience() {
   }
 }
 
+// The guided tour HUD: names the next stop, points at it, counts the metres down, and once
+// the visitor is standing there asks them to open the conversation. Museum3D drives it.
+function updateTourGuide(tour) {
+  const guide = document.querySelector("#tourGuide");
+  if (!guide) return;
+  guide.hidden = false;
+  guide.classList.toggle("arrived", tour.arrived);
+  const arrow = document.querySelector("#tourArrow");
+  const step = document.querySelector("#tourStep");
+  const title = document.querySelector("#tourTitle");
+  const hint = document.querySelector("#tourHint");
+  if (arrow) arrow.style.transform = `rotate(${Math.round(tour.angleDeg)}deg)`;
+  if (step) step.textContent = tour.arrived ? `STOP ${tour.index + 1} / ${tour.total} · YOU ARE HERE` : `WALK TO STOP ${tour.index + 1} / ${tour.total}`;
+  if (title) title.textContent = tour.title;
+  if (hint) hint.textContent = tour.arrived ? "CLICK THE PAINTING TO TALK ABOUT IT" : `${Math.round(tour.distance)} M · ${tour.artist}`;
+}
+
 function focusArtwork(artwork) {
   state.focusedArtwork = artwork;
+  // Discussing the stop completes it: move the guide on to the next painting.
+  if (museum3D?.tourTarget()?.artwork === artwork) museum3D.advanceTour();
   // What the visitor actually walked past is the only ground the closing roundtable stands on.
   state.session = recordVisitedArtwork(state.session, artwork);
   const inspector = document.querySelector("#artworkInspector");
