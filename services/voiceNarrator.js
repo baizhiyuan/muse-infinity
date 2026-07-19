@@ -32,6 +32,8 @@ export class VoiceNarrator {
     // Bumped by stop(): in-flight fetch/playback loops compare against it and bail out, so a
     // closed popup can never keep talking over the next scene.
     this.generation = 0;
+    // Handle to force-finish the in-flight segment; set by play(), used by stop().
+    this.settleCurrent = null;
   }
 
   setEnabled(enabled) {
@@ -51,10 +53,20 @@ export class VoiceNarrator {
   }
 
   async drain() {
+    if (this.playing) return;
     this.playing = true;
-    const generation = this.generation;
+    let generation = this.generation;
     let pending = null;
-    while (this.enabled && generation === this.generation) {
+    while (this.enabled) {
+      if (generation !== this.generation) {
+        // Superseded mid-flight (stop() ran — e.g. the visitor answered before the masters
+        // finished). Do NOT exit: drop the stale prefetch, adopt the new generation, and keep
+        // draining whatever was enqueued after the stop. Exiting here is the bug where a
+        // mid-narration choice silenced every line that followed.
+        if (pending) pending.then(url => { if (url) URL.revokeObjectURL(url); });
+        pending = null;
+        generation = this.generation;
+      }
       if (!pending) {
         if (!this.queue.length) break;
         pending = this.fetchSegment(this.queue.shift()).catch(() => null);
@@ -63,11 +75,14 @@ export class VoiceNarrator {
       // Prefetch the next segment while this one speaks — no dead air between masters.
       pending = this.queue.length ? this.fetchSegment(this.queue.shift()).catch(() => null) : null;
       if (!url) continue;
-      if (generation !== this.generation) { URL.revokeObjectURL(url); break; }
+      if (generation !== this.generation) { URL.revokeObjectURL(url); continue; }
       await this.play(url);
     }
     if (pending) pending.then(url => { if (url) URL.revokeObjectURL(url); });
     this.playing = false;
+    // A line enqueued in the gap between the loop's last queue check and the flag flip above
+    // would otherwise wait for the next enqueue; pick it up now.
+    if (this.enabled && this.queue.length) this.drain();
   }
 
   async fetchSegment({ speakerId, text }) {
@@ -94,8 +109,13 @@ export class VoiceNarrator {
         clearTimeout(watchdog);
         URL.revokeObjectURL(url);
         if (this.audio === audio) this.audio = null;
+        if (this.settleCurrent === done) this.settleCurrent = null;
         resolve();
       };
+      // stop() force-finishes the in-flight segment through this handle — a paused audio
+      // element never fires `ended`, so without it the queue would sit silent until the
+      // watchdog expired.
+      this.settleCurrent = done;
       audio.addEventListener("loadedmetadata", () => {
         clearTimeout(watchdog);
         watchdog = setTimeout(done, (Number.isFinite(audio.duration) ? audio.duration : 15) * 1000 + 2500);
@@ -110,5 +130,8 @@ export class VoiceNarrator {
     this.generation += 1;
     this.queue = [];
     if (this.audio) { this.audio.pause(); this.audio.src = ""; this.audio = null; }
+    // Resolve the awaited play() NOW so the drain loop can move on to whatever is enqueued
+    // next, instead of waiting out the watchdog in silence.
+    this.settleCurrent?.();
   }
 }
