@@ -44,6 +44,19 @@ function toggleSound() {
     button.textContent = enabled ? "SOUND ◉" : "SOUND ◌";
   }
 }
+
+// Sound is ON by default (user decision) — but the browser only allows audio after the first
+// user gesture, so arm everything now and let the very first pointer/key press actually start
+// the score. Narration needs no bootstrap: it only ever plays after a click anyway.
+narrator.setEnabled(true);
+bgm.setEnabled(true); // play() is silently refused pre-gesture; the bootstrap below retries
+const startSoundOnFirstGesture = () => {
+  removeEventListener("pointerdown", startSoundOnFirstGesture);
+  removeEventListener("keydown", startSoundOnFirstGesture);
+  if (bgm.enabled) bgm.syncTrack();
+};
+addEventListener("pointerdown", startSoundOnFirstGesture);
+addEventListener("keydown", startSoundOnFirstGesture);
 const worldAdapter = new WorldLabsAdapter({
   container: environmentContainer,
   onState: ({ state: loadState }) => {
