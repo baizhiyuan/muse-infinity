@@ -796,4 +796,20 @@ createServer(async (request, response) => {
   }
 }).listen(port, host, () => {
   console.log(`MUSE∞ is running at http://${host}:${port}`);
+
+  // Announce the RESOLVED model, not the default. `.env` shipping LLM_MODEL=gpt-5.6 silently
+  // overrode DEFAULT_LLM_MODEL and made the whole perf fix inert — the only symptom was every
+  // dialogue request 502ing after two 15s timeouts, which reads like an outage rather than a
+  // config override. A model that cannot meet the latency budget must be visible at boot.
+  const fromEnv = Boolean(process.env.LLM_MODEL || process.env.OPENAI_MODEL);
+  const source = !fromEnv ? "default"
+    : LLM_MODEL === DEFAULT_LLM_MODEL ? "env, matches default"
+    : `env, OVERRIDING default ${DEFAULT_LLM_MODEL}`;
+  console.log(`[llm] model=${LLM_MODEL} (${source}) timeout=${LLM_TIMEOUT_MS}ms`);
+  if (LLM_MODEL !== DEFAULT_LLM_MODEL) {
+    console.warn(
+      `[llm] WARNING: ${DEFAULT_LLM_MODEL} is the only model measured to fit the ${LLM_TIMEOUT_MS}ms budget ` +
+      `on the real three-perspective payload. ${LLM_MODEL} may time out on every dialogue request.`
+    );
+  }
 });
