@@ -205,7 +205,9 @@ export const WORLDS = {
     // the palace mass at (-16,20); (0,12) is the solidest open floor in front of it (65
     // verts, lowest obstruction), ~30m out, and yaw -2.03 looks straight at the facade.
     // Still inside the sharp splat core around the capture origin.
-    profile: { spawn: { x: 0.0, z: 12.0 }, groundY: 3.0, bounds: { minX: -75.29, maxX: 68.24, minZ: 1.12, maxZ: 82.68 }, yaw: -2.03, cameraFar: 400 },
+    // User then flipped the view 180 (palace now BEHIND on entry) and stepped left along the
+    // new facing: yaw 1.11, spawn (-1,10) (26 floor verts underfoot).
+    profile: { spawn: { x: -1.0, z: 10.0 }, groundY: 3.0, bounds: { minX: -75.29, maxX: 68.24, minZ: 1.12, maxZ: 82.68 }, yaw: 1.11, cameraFar: 400 },
     enclosed: false,
     recommended: false,
   },
