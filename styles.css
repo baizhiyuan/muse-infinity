@@ -116,6 +116,11 @@ h2 { font-size: clamp(36px, 5vw, 72px); line-height: 1.02; max-width: 900px; }
 .gallery-title > span { display:block; margin-top:12px; font-size:7px; letter-spacing:.18em; color:rgba(52,45,40,.58); }
 .collection-status { position:absolute; z-index:4; right:42px; top:90px; display:flex; gap:9px; align-items:center; padding:10px 14px; border:1px solid rgba(73,58,45,.16); border-radius:999px; background:rgba(255,252,245,.62); backdrop-filter:blur(16px); color:rgba(52,45,40,.62); font-size:7px; letter-spacing:.14em; }
 .collection-status i { width:6px; height:6px; border-radius:50%; background:#709c80; box-shadow:0 0 0 4px rgba(112,156,128,.14); }
+/* The finale plaque: the visitor's own manifesto title, shown inside the world their
+   choices selected. Only rendered once state.finalWorld is set, i.e. after the manifesto. */
+.manifesto-plaque { position:absolute; z-index:5; left:42px; top:90px; max-width:min(340px,38vw); padding:14px 18px; border-left:2px solid var(--stage-accent); background:rgba(255,252,245,.72); backdrop-filter:blur(16px); color:#342d28; }
+.manifesto-plaque small { display:block; color:#8a654a; font-size:7px; letter-spacing:.16em; }
+.manifesto-plaque b { display:block; margin-top:7px; font-size:21px; line-height:1.15; font-weight:400; }
 .companion-dock { position:absolute; z-index:4; right:42px; top:138px; display:flex; gap:8px; }
 .companion-chip { width:56px; height:72px; padding:4px; background:rgba(255,252,245,.64); border:1px solid rgba(73,58,45,.17); backdrop-filter:blur(14px); text-align:center; color:#41362e; }
 .companion-chip img { width:46px; height:48px; object-fit:cover; display:block; filter:saturate(.9); }
@@ -274,6 +279,8 @@ body[data-stage="world_selection"] .wordmark { text-shadow:0 0 28px rgba(201,170
   .gallery-title { left:18px; top:72px; }
   .gallery-title h2 { font-size:34px; }
   .collection-status { right:18px; top:72px; max-width:45vw; }
+  .manifesto-plaque { left:18px; top:72px; max-width:46vw; padding:10px 13px; }
+  .manifesto-plaque b { font-size:16px; }
   .companion-dock { right:18px; top:116px; }
   .artwork-inspector { right:18px; top:200px; width:min(270px,80vw); }
   .conversation-dock { left:18px; right:18px; bottom:62px; width:auto; }

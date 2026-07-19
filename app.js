@@ -243,8 +243,9 @@ function worldExplorationView() {
   const focused = state.focusedArtwork || state.galleryArtworks[0];
   return `<section class="scene gallery-scene">
     <div class="gallery-viewport" id="museum3d">
-      <div class="gallery-title"><p class="eyebrow">04 / THE LIVING GALLERY</p><h2>Walk into the collection.</h2><span>DRAG TO LOOK · W A S D TO WALK · CLICK AN ARTWORK</span></div>
+      <div class="gallery-title"><p class="eyebrow">${state.finalWorld ? "10 / THE WORLD YOU ARGUED FOR" : "04 / THE LIVING GALLERY"}</p><h2>${state.finalWorld ? "This is the world your choices built." : "Walk into the collection."}</h2><span>DRAG TO LOOK · W A S D TO WALK · CLICK AN ARTWORK</span></div>
       <div id="worldStatus" style="position:absolute;top:64px;left:24px;z-index:20;font:600 11px/1.4 ui-monospace,monospace;letter-spacing:.08em;color:#9fe3d0;background:rgba(0,0,0,.5);padding:6px 10px;border-radius:6px;pointer-events:none">WORLD · …</div>
+      ${state.finalWorld ? `<div class="manifesto-plaque"><small>YOUR IMPOSSIBLE WORLD</small><b>${escapeHtml(state.finalWorld)}</b></div>` : ""}
       <div class="collection-status"><i></i><span id="collectionStatus">OPEN ACCESS COLLECTION · LOCAL CURATION</span></div>
       <div class="companion-dock" aria-label="Your museum companions">${companions.map(character => `<div class="companion-chip" title="${character.fullName}"><img src="${character.portrait}" alt="${character.fullName}"/><span>${character.name}</span></div>`).join("")}</div>
       <aside class="artwork-inspector" id="artworkInspector">
@@ -259,7 +260,7 @@ function worldExplorationView() {
         <div class="conversation-log" id="conversationLog"><p><b>${companions[0]?.name || "MUSE"}</b> Ask us what this room changes about the way you see.</p></div>
         <form id="galleryQuestionForm" class="conversation-form"><input id="galleryQuestion" autocomplete="off" placeholder="Ask the group while you walk…" aria-label="Question for your companions"/><button>ASK</button></form>
       </section>
-      <button class="salon-next" data-action="summon">SUMMON THE FULL SALON <span>→</span></button>
+      ${state.finalWorld ? `<button class="salon-next" data-action="reset">BEGIN AGAIN <span>→</span></button>` : `<button class="salon-next" data-action="summon">SUMMON THE FULL SALON <span>→</span></button>`}
     </div>
   </section>`;
 }
