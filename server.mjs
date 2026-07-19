@@ -120,10 +120,19 @@ const LLM_RETRY_LIMIT = 1;
 
 // A visitor-facing request must fail rather than hang. `fetch` has no default timeout, so without
 // this a stalled proxy connection holds the turn open forever and the demo reads as frozen with
-// nothing on stderr. Sized as a hang-guard, not a latency control: it sits far above the ~2.5s
-// P50 and the worst honest call observed, so it fires on genuinely stuck sockets, never on slow
-// ones. An abort is retryable, so a single stalled connection still gets one clean second attempt.
-const LLM_TIMEOUT_MS = 15_000;
+// nothing on stderr.
+//
+// This is a HANG-GUARD, not a latency control, and the distinction cost us the whole feature once:
+// the previous 15s value was justified against a "~2.5s P50" that came from short synthetic prompts
+// fired straight at the proxy. Measured through the server on the real ~5300-char payload, P50 is
+// ~9.7s — so 15s was ~1.5x the median, not the wide margin the comment claimed, and gpt-5.6 sat
+// past it entirely and 502'd on 6/6 requests with no clue as to why.
+//
+// Sized now against the real distribution: if spark's P95/P50 ratio resembles the ~2.1x measured on
+// gpt-5.6, P95 lands near 20s. 45s clears that with room and still catches a genuinely dead socket.
+// A timeout that fires on a merely-slow call converts a survivable wait into a 502 in front of an
+// audience, which is the only stage-fatal failure mode this feature has.
+const LLM_TIMEOUT_MS = 45_000;
 
 function isRetryableStatus(status) {
   return status === 429 || status >= 500;
