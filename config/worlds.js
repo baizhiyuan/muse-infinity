@@ -95,7 +95,9 @@ export const WORLDS = {
     profile: { spawn: { x: 1.16, z: 0.78 }, groundY: 0.2, bounds: { minX: -8.12, maxX: 12.73, minZ: -10.4, maxZ: 11.44 }, yaw: 0, cameraFar: 200 },
     enclosed: true,
     recommended: true,
-    // Hidden from the chooser; reserved as the exclusive philosophy-ending world.
+    // Shelved from the finale after #13: black-void interior — an asset-quality defect, not a
+    // transform one (collider floor plateau matches this config exactly). Still finaleOnly so
+    // it never appears anywhere.
     finaleOnly: true,
   },
   "fantasy-realm-of-shimmering-spheres": {
@@ -223,7 +225,11 @@ export const listWorlds = () => WORLD_ORDER.map((k) => WORLDS[k]).filter((w) => 
 export const PHILOSOPHY_WORLDS = {
   // Each ending lands in a world the chooser never offered (finaleOnly), so the finale reads
   // as generated for the visitor. PHILOSOPHY_QUERIES stays unchanged and stays in lockstep.
-  "emotion+perception": "elegant-floral-palace-interior",     // Monet collection — blossom palace
+  // feedback #13: two endings now share the luminous Van Gogh studio (clear corridor, real
+  // paintings — the best-rated of the three) while the floral asset is shelved for its
+  // black-void interior (asset quality, not transform — its collider floor plateau matches
+  // config exactly). The Monet/Kandinsky/Van Gogh collections still personalise each ending.
+  "emotion+perception": "van-gogh-inspired-gallery-interior", // Monet collection — luminous studio
   "invention+perception": "yellow-polka-dot-infinity-room",   // Kandinsky collection — abstract dot room
   "emotion+invention": "van-gogh-inspired-gallery-interior",  // Van Gogh collection — his own studio world
 };

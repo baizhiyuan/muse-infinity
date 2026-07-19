@@ -27,7 +27,7 @@ const worldAdapter = new WorldLabsAdapter({
   container: environmentContainer,
   onState: ({ state: loadState }) => {
     state.worldLoadState = loadState;
-    const labels = { idle:"LOCAL MEMORY", loading:"GATHERING WORLD", ready:"WORLD LABS READY", fallback:"LOCAL FALLBACK" };
+    const labels = { idle:"LOCAL MEMORY", loading:"GATHERING WORLD", ready:"WORLD LABS READY", fallback:"LOCAL ARCHIVE" };
     worldStatus.textContent = labels[loadState] || "LOCAL MEMORY";
     loadingMemory.classList.toggle("visible", loadState === "loading");
   }
