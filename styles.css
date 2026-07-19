@@ -162,6 +162,12 @@ h2 { font-size: clamp(36px, 5vw, 72px); line-height: 1.02; max-width: 900px; }
 .art-choice small { font:8px "DM Sans",sans-serif; letter-spacing:.14em; color:var(--speaker-color,#8a654a); }
 .art-choice.art-continue { justify-content:center; font-size:11px; letter-spacing:.14em; text-transform:uppercase; }
 .art-dialogue-disclaimer { display:block; margin-top:8px; font-size:7px; letter-spacing:.14em; opacity:.5; }
+.art-ask-form { display:flex; margin-top:10px; border-top:1px solid rgba(73,58,45,.12); }
+.art-ask-form input { width:100%; min-width:0; border:0; outline:0; background:transparent; color:#342d28; padding:12px 4px; font:13px/1.4 "Gilda Display",serif; }
+.art-ask-form button { border:0; background:none; color:#735d4b; padding:0 10px; font-size:8px; letter-spacing:.14em; cursor:pointer; }
+.art-dialogue-live .live-perspective { margin:0 0 9px; }
+.art-dialogue-live .live-perspective:last-child { margin-bottom:0; }
+.art-dialogue-live .ai-disclaimer { display:block; margin-top:2px; font:7px "DM Sans",sans-serif; letter-spacing:.15em; color:#8a654a; opacity:.65; }
 
 .monet-layout { display:grid; grid-template-columns:1.05fr .95fr; gap:5vw; align-items:end; }
 .artwork-ribbon { grid-column:1 / -1; display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin:-10px 0 18px; }
