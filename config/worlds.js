@@ -39,7 +39,9 @@ export const WORLDS = {
     metric: { scale: 0.80177665, ty: 0.5 },
     profile: { spawn: { x: 0, z: -1.14 }, groundY: 0, bounds: { minX: -2.42, maxX: 2.36, minZ: -26.84, maxZ: 24.55 }, yaw: 0, cameraFar: 300 },
     enclosed: true,
-    recommended: true,
+    // Retired from the lineup (user verdict: too plain next to the lush prompt-image worlds).
+    // Kept only for ?world= debugging.
+    recommended: false,
   },
   "yellow-polka-dot-infinity-room": {
     key: "yellow-polka-dot-infinity-room",
@@ -57,6 +59,8 @@ export const WORLDS = {
     profile: { spawn: { x: 0.04, z: 0.25 }, groundY: 0.0, bounds: { minX: -4.43, maxX: 8.48, minZ: -2.68, maxZ: 5.45 }, yaw: -Math.PI / 2, cameraFar: 200 },
     enclosed: true,
     recommended: true,
+    // Hidden from the chooser; reserved as the exclusive philosophy-ending world.
+    finaleOnly: true,
   },
   "van-gogh-inspired-gallery-interior": {
     key: "van-gogh-inspired-gallery-interior",
@@ -73,6 +77,8 @@ export const WORLDS = {
     profile: { spawn: { x: 1.79, z: 0.3 }, groundY: 0.0, bounds: { minX: -2.47, maxX: 10.0, minZ: -14.62, maxZ: 13.73 }, yaw: 0, cameraFar: 200 },
     enclosed: true,
     recommended: true,
+    // Hidden from the chooser; reserved as the exclusive philosophy-ending world.
+    finaleOnly: true,
   },
   "elegant-floral-palace-interior": {
     key: "elegant-floral-palace-interior",
@@ -89,6 +95,8 @@ export const WORLDS = {
     profile: { spawn: { x: 1.16, z: 0.78 }, groundY: 0.2, bounds: { minX: -8.12, maxX: 12.73, minZ: -10.4, maxZ: 11.44 }, yaw: 0, cameraFar: 200 },
     enclosed: true,
     recommended: true,
+    // Hidden from the chooser; reserved as the exclusive philosophy-ending world.
+    finaleOnly: true,
   },
   "fantasy-realm-of-shimmering-spheres": {
     key: "fantasy-realm-of-shimmering-spheres",
@@ -185,12 +193,9 @@ export const WORLDS = {
   },
 };
 
-// Display order for the world-selection screen: enclosed / recommended first.
+// Chooser shows the walkable default first, then the open experimental worlds; finale worlds
+// (finaleOnly: true) are reserved for the philosophy endings and hidden from this list.
 export const WORLD_ORDER = [
-  "bright-gallery-hall",
-  "yellow-polka-dot-infinity-room",
-  "van-gogh-inspired-gallery-interior",
-  "elegant-floral-palace-interior",
   "fantasy-realm-of-shimmering-spheres",
   "grand-conservatory-with-lush-gardens",
   "mexican-courtyard-bedroom-fantasy",
@@ -199,14 +204,15 @@ export const WORLD_ORDER = [
   "sunlit-palace-gardens",
 ];
 
-// Bright Gallery Hall is our benchmark-grade bright museum hall: API-generated, with a clear
-// splat, flat walls and correctly positioned rawMarble collider/splat transform. Feedback #11
-// confirmed its proportions are the ones the other enclosed worlds are being tuned toward, so
-// the demo defaults to it.
-export const DEFAULT_WORLD_KEY = "bright-gallery-hall";
+// The shimmering-spheres tunnel is the Act-4 living gallery — full acceptance pass #12 (grand
+// space, recognisable companions, feet on the ground) — and renders the 181MB highest-quality
+// texture mesh, so the demo defaults to it.
+export const DEFAULT_WORLD_KEY = "fantasy-realm-of-shimmering-spheres";
 
 export const getWorld = (key) => WORLDS[key] || WORLDS[DEFAULT_WORLD_KEY];
-export const listWorlds = () => WORLD_ORDER.map((k) => WORLDS[k]).filter(Boolean);
+// Safety filter: finale-reserved worlds can never leak into the chooser, even if someone
+// re-adds them to WORLD_ORDER.
+export const listWorlds = () => WORLD_ORDER.map((k) => WORLDS[k]).filter((w) => w && !w.finaleOnly);
 
 // ---- The visitor's philosophy decides the world they finally walk into ----------------
 //
@@ -215,12 +221,11 @@ export const listWorlds = () => WORLD_ORDER.map((k) => WORLDS[k]).filter(Boolean
 // Every target is `enclosed: true`: an open world would strand the visitor on a plain.
 
 export const PHILOSOPHY_WORLDS = {
-  // All three endings land in the benchmark-grade generated gallery (the one clear, correctly
-  // positioned world). The philosophy still personalises the visit via a distinct Art Institute
-  // collection + manifesto per ending — only the (best) environment is shared.
-  "emotion+perception": "bright-gallery-hall",     // The Garden of Living Light (Monet)
-  "invention+perception": "bright-gallery-hall",   // The Museum of Multiple Realities (Kandinsky)
-  "emotion+invention": "bright-gallery-hall",       // The Infinite Interior (Van Gogh)
+  // Each ending lands in a world the chooser never offered (finaleOnly), so the finale reads
+  // as generated for the visitor. PHILOSOPHY_QUERIES stays unchanged and stays in lockstep.
+  "emotion+perception": "elegant-floral-palace-interior",     // Monet collection — blossom palace
+  "invention+perception": "yellow-polka-dot-infinity-room",   // Kandinsky collection — abstract dot room
+  "emotion+invention": "van-gogh-inspired-gallery-interior",  // Van Gogh collection — his own studio world
 };
 
 // Art Institute query per ending. These MUST be artist names: the open-access endpoint
