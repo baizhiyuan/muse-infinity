@@ -6,6 +6,11 @@ import { generateWorld, getWorldOperation, worldLabsConfigured } from "./service
 import { animateTripoModel, checkTripoRig, generateTripoModel, generateTripoMultiviewModel, getTripoTask, rigTripoModel, tripoConfigured } from "./services/tripoApi.js";
 import { salonParticipants } from "./config/museumAssets.js";
 
+// LLM config: prefer LLM_* (OpenAI-compatible proxy, e.g. baizhiyuan); fall back to OPENAI_*.
+const LLM_API_KEY = process.env.LLM_API_KEY || process.env.OPENAI_API_KEY;
+const LLM_BASE_URL = (process.env.LLM_BASE_URL || "https://api.openai.com").replace(/\/+$/, "");
+const LLM_MODEL = process.env.LLM_MODEL || process.env.OPENAI_MODEL || "gpt-5.6";
+
 const port = Number(process.env.PORT || 4173);
 const host = process.env.HOST || "127.0.0.1";
 const root = process.cwd();
@@ -106,7 +111,7 @@ async function handleDialogue(request, response) {
   const body = JSON.parse(await readBody(request) || "{}");
   if (!body.question || typeof body.question !== "string") return sendJson(response, 400, { error: "A question is required." });
   const fallback = localDialogue(body);
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = LLM_API_KEY;
   if (!apiKey) return sendJson(response, 200, fallback);
 
   const companions = Array.isArray(body.companions) ? body.companions.slice(0, 3).map(item => String(item.name || "")).filter(Boolean) : [];
@@ -118,11 +123,11 @@ async function handleDialogue(request, response) {
   ].join("\n");
 
   try {
-    const openaiResponse = await fetch("https://api.openai.com/v1/responses", {
+    const openaiResponse = await fetch(`${LLM_BASE_URL}/v1/responses`, {
       method: "POST",
       headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
       body: JSON.stringify({
-        model: process.env.OPENAI_MODEL || "gpt-5.6",
+        model: LLM_MODEL,
         store: false,
         instructions: "You orchestrate a live museum walk. Speak through exactly one of the available historical companions as an explicitly interpretive AI perspective, never as an authentic quotation, endorsement, or impersonation. Ground the answer in the artwork named in the context. Be vivid, conversational, and under 55 words. End with a perceptive question only when it genuinely advances the visitor's looking. Choose one visual effect from mist, fracture, garden, network, or light.",
         input: prompt,
@@ -148,7 +153,7 @@ async function handleDialogue(request, response) {
     if (!openaiResponse.ok) throw new Error(`OpenAI returned ${openaiResponse.status}`);
     const payload = await openaiResponse.json();
     const parsed = JSON.parse(extractResponseText(payload));
-    sendJson(response, 200, { ...parsed, live: true, model: process.env.OPENAI_MODEL || "gpt-5.6" });
+    sendJson(response, 200, { ...parsed, live: true, model: LLM_MODEL });
   } catch (error) {
     sendJson(response, 200, { ...fallback, warning: error.message });
   }
@@ -182,7 +187,7 @@ async function handleArtworks(url, response) {
 }
 
 async function handleRealtimeSession(request, response) {
-  if (!process.env.OPENAI_API_KEY) return sendJson(response, 503, { error: "OPENAI_API_KEY is not configured on the server." });
+  if (!LLM_API_KEY) return sendJson(response, 503, { error: "LLM API key is not configured on the server." });
   const sdp = await readBody(request, 200_000);
   const form = new FormData();
   form.set("sdp", sdp);
@@ -192,9 +197,9 @@ async function handleRealtimeSession(request, response) {
     instructions: "You are an interpretive museum companion. Never claim to be the real historical figure and never present generated language as an authentic quotation.",
     audio: { output: { voice: "marin" } }
   }));
-  const openaiResponse = await fetch("https://api.openai.com/v1/realtime/calls", {
+  const openaiResponse = await fetch(`${LLM_BASE_URL}/v1/realtime/calls`, {
     method: "POST",
-    headers: { authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+    headers: { authorization: `Bearer ${LLM_API_KEY}` },
     body: form
   });
   const answer = await openaiResponse.text();
@@ -206,7 +211,7 @@ async function handleIntegrationRoute(request, response, url) {
   const path = url.pathname;
   if (request.method === "GET" && path === "/api/integrations/status") {
     return sendJson(response, 200, {
-      openai: Boolean(process.env.OPENAI_API_KEY),
+      openai: Boolean(LLM_API_KEY),
       worldLabs: worldLabsConfigured(),
       tripo: tripoConfigured()
     });

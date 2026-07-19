@@ -12,6 +12,7 @@ tmp/
 .omx/
 splat-test.html
 companion-test.html
+DEBUG_REPORT.md
 assets/worlds/
 assets/characters/
 assets/*.spz

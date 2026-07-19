@@ -127,6 +127,9 @@ const choices = [
 const escapeHtml = (value) => String(value).replace(/[&<>'"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[c]));
 
 function setStage(stage) {
+  // Leaving (or never entering) the transformation clears its timers so a stale
+  // scheduled setStage("manifesto") can't hijack a later screen.
+  if (stage !== "world_transformation") { transformationTimers.forEach(clearTimeout); transformationTimers = []; state.transformationStart = 0; }
   if (state.stage === "world_exploration" && stage !== "world_exploration") teardownMuseumExperience();
   state.stage = stage;
   document.body.dataset.stage = stage;
@@ -142,6 +145,13 @@ function setStage(stage) {
   updateMeter();
   render();
   if (stage === "world_exploration") queueMicrotask(initMuseumExperience);
+  // Entered the transformation without going through choose() (keyboard 6 / ?stage=):
+  // self-bootstrap the timeline so it isn't a permanent static dead-end.
+  if (stage === "world_transformation" && !state.transformationStart) {
+    state.transformationChoice = state.transformationChoice || "perception";
+    state.transformationStart = globalThis.performance.now();
+    scheduleTransformation();
+  }
   updateDebugPanel();
 }
 
@@ -269,7 +279,7 @@ function dialogueView() {
   const turn = turns[state.dialogueIndex];
   state.activeSpeaker = turn.speaker;
   const speakerLabel = characters.find(({ id })=>id===turn.speaker)?.name || turn.speaker.replace("_"," ").toUpperCase();
-  return `<section class="scene dialogue-scene"><p class="speaker-name">${speakerLabel}</p><blockquote>“${turn.text}”</blockquote><div class="dialogue-progress">${turns.map((_,i)=>`<i class="${i<=state.dialogueIndex?"done":""}"></i>`).join("")}</div><button class="primary-action" data-action="next-dialogue">${state.dialogueIndex === turns.length-1 ? "FACE THE CONTRADICTION" : "CONTINUE"}</button></section>`;
+  return `<section class="scene dialogue-scene"><p class="speaker-name">${speakerLabel}</p><blockquote>“${turn.text}”</blockquote><p style="font-size:9px;letter-spacing:.16em;opacity:.5;margin:12px 0 0">AI INTERPRETATION GROUNDED IN DOCUMENTED THEMES — NOT AN AUTHENTIC QUOTATION</p><div class="dialogue-progress">${turns.map((_,i)=>`<i class="${i<=state.dialogueIndex?"done":""}"></i>`).join("")}</div><button class="primary-action" data-action="next-dialogue">${state.dialogueIndex === turns.length-1 ? "FACE THE CONTRADICTION" : "CONTINUE"}</button></section>`;
 }
 
 function decisionView() {
@@ -366,7 +376,8 @@ async function initMuseumExperience() {
     companions: selectedCompanionRecords(),
     onArtworkFocus: focusArtwork,
     onReady: () => container.classList.add("ready"),
-    worldSplatUrl: "/assets/worlds/monet.spz"
+    worldSplatUrl: "/assets/worlds/monet.spz",
+    worldMeshUrl: "/assets/worlds/sunlit-mesh.glb"
   });
   museum3D.mount();
   voiceConversation = new VoiceConversation({
@@ -487,7 +498,7 @@ function scheduleTransformation() {
 function reset() {
   transformationTimers.forEach(clearTimeout);
   teardownMuseumExperience();
-  Object.assign(state, { stage:"threshold", selectedPortal:null, activeSpeaker:null, currentQuestion:null, dialogueIndex:0, philosophy:{perception:0,emotion:0,invention:0}, finalWorld:null, transformationStart:0, transformationChoice:null, selectedCompanions:new Set(["monet","morisot"]), galleryArtworks:[...museumArtworks], focusedArtwork:museumArtworks[0] });
+  Object.assign(state, { stage:"threshold", selectedPortal:null, activeSpeaker:null, currentQuestion:null, dialogueIndex:0, philosophy:{perception:0,emotion:0,invention:0}, finalWorld:null, transformationStart:0, transformationChoice:null, selectedCompanions:new Set(["monet","van_gogh","socrates"]), galleryArtworks:[...museumArtworks], focusedArtwork:museumArtworks[0] });
   particleMode = "threshold";
   setStage("threshold");
 }
