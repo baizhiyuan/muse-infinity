@@ -34,6 +34,9 @@ export class VoiceNarrator {
     this.generation = 0;
     // Handle to force-finish the in-flight segment; set by play(), used by stop().
     this.settleCurrent = null;
+    // Optional callback(speaking: boolean) — fires true when a segment starts speaking and
+    // false when the queue truly drains. The background score ducks on it, game-style.
+    this.onSpeaking = null;
   }
 
   setEnabled(enabled) {
@@ -81,8 +84,9 @@ export class VoiceNarrator {
     if (pending) pending.then(url => { if (url) URL.revokeObjectURL(url); });
     this.playing = false;
     // A line enqueued in the gap between the loop's last queue check and the flag flip above
-    // would otherwise wait for the next enqueue; pick it up now.
-    if (this.enabled && this.queue.length) this.drain();
+    // would otherwise wait for the next enqueue; pick it up now (still speaking, no unduck).
+    if (this.enabled && this.queue.length) { this.drain(); return; }
+    this.onSpeaking?.(false);
   }
 
   async fetchSegment({ speakerId, text }) {
@@ -116,6 +120,7 @@ export class VoiceNarrator {
       // element never fires `ended`, so without it the queue would sit silent until the
       // watchdog expired.
       this.settleCurrent = done;
+      this.onSpeaking?.(true);
       audio.addEventListener("loadedmetadata", () => {
         clearTimeout(watchdog);
         watchdog = setTimeout(done, (Number.isFinite(audio.duration) ? audio.duration : 15) * 1000 + 2500);

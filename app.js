@@ -2,6 +2,7 @@ import { worldAssets } from "./config/assets.js";
 import { WorldLabsAdapter } from "./services/worldLabs.js";
 import { AudioReactiveSignal } from "./lib/audioAnalysis.js";
 import { VoiceNarrator } from "./services/voiceNarrator.js";
+import { BackgroundMusic } from "./lib/backgroundMusic.js";
 import { PerformanceController } from "./lib/performance.js";
 import { createMemoryWorld, memoryPalette } from "./lib/memoryWorld.js";
 import { museumArtworks, salonParticipants } from "./config/museumAssets.js";
@@ -25,16 +26,22 @@ document.body.append(loadingMemory);
 
 const audioSignal = new AudioReactiveSignal();
 const narrator = new VoiceNarrator();
+const bgm = new BackgroundMusic();
+// Game-style ducking: while any master speaks, the score drops under the voice and swells back
+// when the line ends.
+narrator.onSpeaking = speaking => bgm.duck(speaking);
 
-// Right-side VOICE toggle: per-master MiniMax narration for popup lines, live readings and the
-// closing roundtable. Off by default — enabling is a user gesture, which also satisfies the
-// browser autoplay policy for the Audio elements the narrator plays.
-function toggleVoice() {
-  narrator.setEnabled(!narrator.enabled);
+// Right-side SOUND toggle: one switch for the whole soundscape — the per-act background score
+// (from the very first page) AND per-master MiniMax narration. Off by default — enabling is a
+// user gesture, which also satisfies the browser autoplay policy for every Audio element.
+function toggleSound() {
+  const enabled = !narrator.enabled;
+  narrator.setEnabled(enabled);
+  bgm.setEnabled(enabled);
   const button = document.querySelector("#voiceToggle");
   if (button) {
-    button.setAttribute("aria-pressed", String(narrator.enabled));
-    button.textContent = narrator.enabled ? "VOICE ◉" : "VOICE ◌";
+    button.setAttribute("aria-pressed", String(enabled));
+    button.textContent = enabled ? "SOUND ◉" : "SOUND ◌";
   }
 }
 const worldAdapter = new WorldLabsAdapter({
@@ -163,6 +170,7 @@ const escapeHtml = (value) => String(value).replace(/[&<>'"]/g, c => ({"&":"&amp
 
 function setStage(stage) {
   narrator.stop(); // a stage change always interrupts narration
+  bgm.setStage(stage); // …and moves the score to that act's track (same act = no restart)
   // Leaving (or never entering) the transformation clears its timers so a stale
   // scheduled setStage("manifesto") can't hijack a later screen.
   if (stage !== "world_transformation") { transformationTimers.forEach(clearTimeout); transformationTimers = []; state.transformationStart = 0; }
@@ -1130,11 +1138,11 @@ addEventListener("keydown",event=>{
   }
 });
 
-if (["localhost", "127.0.0.1"].includes(location.hostname)) window.__museDebug = { openArtDialogue, openAskDialogue, closeArtDialogue };
+if (["localhost", "127.0.0.1"].includes(location.hostname)) window.__museDebug = { openArtDialogue, openAskDialogue, closeArtDialogue, narrator, bgm };
 
 document.querySelectorAll("[data-action='reset']").forEach(button=>button.addEventListener("click",reset));
 document.querySelector("[data-action='toggle-audio']").addEventListener("click",toggleAudio);
-document.querySelector("[data-action='toggle-voice']")?.addEventListener("click",toggleVoice);
+document.querySelector("[data-action='toggle-voice']")?.addEventListener("click",toggleSound);
 document.querySelector("[data-action='toggle-performance']").addEventListener("click",togglePerformance);
 syncParticlePool(); resize(); updatePerformanceLabel(); const __start = new URLSearchParams(location.search).get("stage"); setStage(STAGES.includes(__start) ? __start : "threshold"); requestAnimationFrame(renderWorld);
 

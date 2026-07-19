@@ -52,7 +52,10 @@ const mime = {
   ".png": "image/png",
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
-  ".webp": "image/webp"
+  ".webp": "image/webp",
+  ".ogg": "audio/ogg",
+  ".opus": "audio/ogg",
+  ".mp3": "audio/mpeg"
 };
 
 const artworkCache = new Map();

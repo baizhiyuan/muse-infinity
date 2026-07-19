@@ -2,7 +2,13 @@
 
 ## Current prototype
 
-No third-party 3D models, music, voice recordings, copied source code, or private museum data are bundled in this vertical slice.
+No third-party 3D models, copied source code, or private museum data are bundled in this vertical slice. The bundled background-music recordings are public-domain performances, listed below.
+
+## Background music (public-domain recordings via Wikimedia Commons)
+
+- `assets/audio/promenade.ogg` — Modest Mussorgsky, *Pictures at an Exhibition* — Promenade (allegro giusto). Public-domain recording. Source: https://commons.wikimedia.org/wiki/File:Modest_Mussorgsky_-_pictures_at_an_exhibition_-_promenade_-_allegro_giusto,_nel_modo_russico_senza_allegrezza,_ma.ogg
+- `assets/audio/clair-de-lune.opus` — Claude Debussy, *Clair de lune* (piano solo). Public-domain recording. Source: https://commons.wikimedia.org/wiki/File:Clair_de_Lune_by_Claude_Debussy_(1905,_piano_solo).opus
+- `assets/audio/gymnopedie.ogg` — Erik Satie, *Gymnopédie No. 1* (perf. Robin Alciatore). Public-domain recording. Source: https://commons.wikimedia.org/wiki/File:Erik_Satie_-_gymnopedies_-_la_1_ere._lent_et_douloureux.ogg
 
 Web typography requests:
 
