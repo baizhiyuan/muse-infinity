@@ -323,17 +323,31 @@ function describeArtwork(artwork = {}) {
   return `Artwork in focus: ${artwork.title || "unknown"} by ${artwork.artist || "unknown"} (${artwork.date || "date unknown"})`;
 }
 
-/** The master's authored lens, verbatim. Divergence is data, not a hope placed in one prompt. */
+/**
+ * The master's authored lens, verbatim — and the ONLY place a master's voice material is emitted.
+ *
+ * It used to be emitted twice per call: arm B also prepended `lens.systemPrompt` to `instructions`,
+ * so every shared clause baked into that prompt (the interpretive framing, artwork grounding, the
+ * word limit) reached the model 3x per call while the fields that actually separate the masters
+ * reached it once. Repetition is emphasis, so the model was emphatically told to be a careful
+ * museum voice and only briefly told to be THIS master — and the most-repeated clause duly became
+ * the loudest shared verbal tic in the output. Shared rules now live in the instructions alone and
+ * this block is almost entirely what makes him different.
+ *
+ * `systemPrompt` leads because it now carries the SHAPE — the speech act this voice performs. Two
+ * masters told to "report what you see" with different nouns produce one voice in two costumes;
+ * the separation has to be a different rhetorical move, not a different word list.
+ */
 function describeMaster(master, index) {
   const { lens } = master;
   return [
     `--- PERSPECTIVE ${index + 1} ---`,
     `speakerId (copy verbatim): ${master.id}`,
     `speaker (copy verbatim): ${master.fullName}`,
-    `Voice instruction, obey exactly: ${lens.systemPrompt}`,
+    `THE SHAPE OF YOUR REPLY — the hardest constraint here, obey it in every sentence: ${lens.systemPrompt}`,
+    `The move this voice makes: ${lens.questionStyle}`,
     `Lens: ${lens.lens}`,
     `Attend only to: ${lens.attention.join("; ")}`,
-    `Questioning style: ${lens.questionStyle}`,
     `Draw on this vocabulary: ${lens.vocabulary.join(", ")}`,
     `Never use these words: ${lens.forbidden.join(", ")}`
   ].join("\n");
@@ -341,17 +355,35 @@ function describeMaster(master, index) {
 
 // The compliance framing every attributed voice carries, on every endpoint. Stated once so a new
 // endpoint cannot ship a subtly weaker version of the claim the product makes to its visitors.
+//
+// INVARIANT: `lens.systemPrompt` no longer restates this framing, so any call that puts a master's
+// lens in front of a model MUST carry INTERPRETIVE_FRAMING in its instructions. All three call
+// sites do (PARALLEL_INSTRUCTIONS, SOLO_INSTRUCTIONS, ROUNDTABLE_INSTRUCTIONS); a fourth must too.
 const INTERPRETIVE_FRAMING =
   "Every perspective is an explicitly interpretive AI reading — never an authentic quotation, " +
   "never an endorsement, never impersonation of the real historical person.";
 
-const PERSPECTIVE_RULES =
-  `${INTERPRETIVE_FRAMING} Ground every ` +
-  "perspective in the artwork named in the context. Answer the visitor's specific question rather " +
-  "than restating the artwork, and vary the opening — a different question must produce a " +
-  "differently-shaped reply, not one stock sentence with the nouns swapped. " +
-  "Reply in English, under 55 words each. " +
-  `Choose one visual effect per perspective from ${EFFECT_VOCABULARY.join(", ")}.`;
+// Constraints that bind every master identically. They reach the model exactly ONCE per call, here,
+// and appear in no master's block — a rule repeated three times is a rule the model weighs three
+// times, which is how "be careful and compliant" came to outweigh "be Monet".
+const SHARED_PERSPECTIVE_RULES =
+  `${INTERPRETIVE_FRAMING} ` +
+  // Same reasoning, and the same wording, as the roundtable path: the client renders this
+  // disclaimer beside every single reading (app.js renderPerspective), so the claim is made to the
+  // visitor either way. Making the model spend its 55 words restating it is what produced the
+  // "In this interpretive AI reading..." tic that opened replies in all three voices alike.
+  "The interface prints that disclaimer beside every reading, so never write one into the reading " +
+  "itself — restating it burns words and gives all three readings the same phrasing. " +
+  "Ground the reading in the artwork named in the context and describe it accurately: name only " +
+  "colours, objects, and placements it actually has. " +
+  "Answer the visitor's specific question rather than restating the artwork. " +
+  "Never open with a bare deictic imperative (\"Look\", \"Notice\", \"See\", \"Begin\", \"Observe\") " +
+  "— every voice reaches for it, so it identifies none of them. Open as your shape demands. " +
+  // 50, not 55. The three speech acts each want a little more room than a plain observation did,
+  // and restating 55 while hoping produced 4 breaches in 30 replies — one at 59 words and three
+  // landing on exactly 55, which is not "under 55". Asking for 50 leaves the slack inside the
+  // constraint instead of outside it.
+  "Reply in English, under 50 words.";
 
 // The vocabulary lists are quarantined per master because this is a single call that can see all
 // three of them. Without the quarantine a term leaks into a neighbouring voice whenever it also
@@ -359,11 +391,27 @@ const PERSPECTIVE_RULES =
 const PARALLEL_INSTRUCTIONS =
   `You compose a museum wall of parallel readings. Return exactly ${PERSPECTIVE_COUNT} perspectives — ` +
   "one for each master described in the context, in the order given, and no others. The masters do " +
-  "not address, answer, or acknowledge one another; each looks at the same artwork alone. Obey each " +
-  "master's own voice instruction, vocabulary, and forbidden words. Each vocabulary belongs to its " +
-  "own master alone: never let a term listed under one master appear in another master's " +
-  "perspective, in any inflected form, even when it would literally describe what is depicted — " +
-  "reach for a different word instead. " + PERSPECTIVE_RULES;
+  "not address, answer, or acknowledge one another; each looks at the same artwork alone. " +
+  "Each master's block opens with the SHAPE his reply must take — a different speech act for each, " +
+  "outranking everything else here: two masters performing the same move with different nouns is " +
+  "the worst outcome of this call. No two perspectives may open with the same word or construction. " +
+  "Each vocabulary belongs to its own master alone: never let a term listed under one master appear " +
+  "in another master's perspective, in any inflected form, even when it would literally describe " +
+  "what is depicted — reach for a different word instead. " +
+  `Choose one visual effect per perspective from ${EFFECT_VOCABULARY.join(", ")}. ` +
+  SHARED_PERSPECTIVE_RULES;
+
+// Arm B sees exactly one master, so it cannot be told to differ from the other two at write time.
+// The separation therefore has to be carried entirely by that master's own SHAPE — which is why
+// the shape is stated as the hardest constraint rather than as the sixth line of a description.
+const SOLO_INSTRUCTIONS =
+  "You write ONE museum reading, in the voice of the single master described in the context. " +
+  "His block opens with the SHAPE his reply must take — the hardest constraint here. Perform it in " +
+  "every sentence, never as a clause tacked onto a description: the shape, not the word list, is " +
+  "what stops three masters reading as one voice. " +
+  "Use his vocabulary and none of his forbidden words. " +
+  `Choose one visual effect from ${EFFECT_VOCABULARY.join(", ")}. ` +
+  SHARED_PERSPECTIVE_RULES;
 
 function buildPerspectiveInput({ question, masters, artwork }) {
   return [
@@ -405,7 +453,10 @@ async function fetchPerspectivesTogether({ question, masters, artwork }) {
 /** Arm B — three concurrent calls, one per master, merged into the identical response shape. */
 async function fetchPerspectivesInParallel({ question, masters, artwork }) {
   const parsed = await Promise.all(masters.map(master => callLLM({
-    instructions: `${master.lens.systemPrompt} ${PERSPECTIVE_RULES}`,
+    // NOT `${master.lens.systemPrompt} ${...}` — the systemPrompt already reaches this call once,
+    // inside describeMaster's block in the input. Prepending it here made it, and every shared
+    // clause it used to carry, arrive two to three times per call.
+    instructions: SOLO_INSTRUCTIONS,
     input: buildPerspectiveInput({ question, masters: [master], artwork }),
     schema: singlePerspectiveSchema
   })));
@@ -603,7 +654,9 @@ const ROUNDTABLE_INSTRUCTIONS =
   `Return exactly ${PERSPECTIVE_COUNT} threads, one for each master described in the context, in ` +
   "the order given. Each thread is that master's single closing remark about THIS visitor's walk, " +
   "spoken in that master's own lens and vocabulary, under 55 words, never addressing the other " +
-  "masters. Then name the world these choices built. " +
+  "masters. Each master's block opens with the SHAPE his remark must take — a different speech act " +
+  "for each, and the thing that keeps three closing remarks from reading as one voice; obey it. " +
+  "Then name the world these choices built. " +
   "The artworks the visitor stopped at and the questions they asked are listed verbatim in the " +
   "context — draw on those exact items and invent no others; if a list is empty, say so plainly " +
   "rather than inventing a stop or a question. " +
