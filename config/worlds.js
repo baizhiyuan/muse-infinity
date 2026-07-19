@@ -162,7 +162,10 @@ export const WORLD_ORDER = [
   "sunlit-palace-gardens",
 ];
 
-export const DEFAULT_WORLD_KEY = "yellow-polka-dot-infinity-room";
+// Fantasy shimmering-spheres tunnel is our clearest (mesh) world and the one where companions
+// read as recognisable full-body figures (the gold dot room dyes them into blobs). Benchmark
+// vs official Marble worlds says visual quality is the gap, so the demo defaults to it.
+export const DEFAULT_WORLD_KEY = "fantasy-realm-of-shimmering-spheres";
 
 export const getWorld = (key) => WORLDS[key] || WORLDS[DEFAULT_WORLD_KEY];
 export const listWorlds = () => WORLD_ORDER.map((k) => WORLDS[k]).filter(Boolean);
@@ -175,7 +178,7 @@ export const listWorlds = () => WORLD_ORDER.map((k) => WORLDS[k]).filter(Boolean
 
 export const PHILOSOPHY_WORLDS = {
   "emotion+perception": "elegant-floral-palace-interior",     // The Garden of Living Light
-  "invention+perception": "yellow-polka-dot-infinity-room",   // The Museum of Multiple Realities
+  "invention+perception": "fantasy-realm-of-shimmering-spheres", // The Museum of Multiple Realities (clearest mesh world)
   "emotion+invention": "van-gogh-inspired-gallery-interior",  // The Infinite Interior
 };
 
