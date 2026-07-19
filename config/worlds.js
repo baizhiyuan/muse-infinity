@@ -201,12 +201,11 @@ export const WORLDS = {
     render: "splat",
     worldScale: 1.7, // open worlds tuned like the finale ones (feedback #11): world grand, people human-scale
     metric: { scale: 1.7981, ty: 1.1657 },
-    // Spawn picked for SHARPNESS (user: start where the splat is clear): decoding the spz
-    // shows detail massively concentrated at the capture origin (cell (0,0): 48k samples vs
-    // 14k next) — the old far-terrace spawn stood in the mushy far field. (4,4) is the
-    // solidest floor cell (67 verts, ground 2.8m) just inside walk bounds (minZ 1.12) next
-    // to that sharp core, and yaw 0 faces straight into it.
-    profile: { spawn: { x: 4.0, z: 4.0 }, groundY: 3.0, bounds: { minX: -75.29, maxX: 68.24, minZ: 1.12, maxZ: 82.68 }, yaw: 0, cameraFar: 400 },
+    // Spawn faces THE PALACE (user: it sat far behind them). Tall-structure dissection puts
+    // the palace mass at (-16,20); (0,12) is the solidest open floor in front of it (65
+    // verts, lowest obstruction), ~30m out, and yaw -2.03 looks straight at the facade.
+    // Still inside the sharp splat core around the capture origin.
+    profile: { spawn: { x: 0.0, z: 12.0 }, groundY: 3.0, bounds: { minX: -75.29, maxX: 68.24, minZ: 1.12, maxZ: 82.68 }, yaw: -2.03, cameraFar: 400 },
     enclosed: false,
     recommended: false,
   },
