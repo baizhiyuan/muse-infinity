@@ -326,3 +326,25 @@ body[data-stage="world_selection"] .wordmark { text-shadow:0 0 28px rgba(201,170
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
 }
+
+/* --- The summoning beat -------------------------------------------------------------------
+   The visitor's walk read into the record before the salon convenes. The stagger below is the
+   beat's whole duration and it is fixed here, in CSS, on purpose: it must never stretch to match
+   how the /api/roundtable request is doing. A duration that tracks latency is a spinner wearing a
+   ritual's clothes. If the synthesis lands early nothing pads; if it outlasts the beat the visitor
+   walks on into the honest loading line on the roundtable screen. */
+.summoning-lede { margin:6px auto 0; font-size:11px; letter-spacing:.14em; color:var(--gold); text-transform:uppercase; }
+.summoning-ledger { list-style:none; max-width:640px; margin:14px auto 4px; padding:0; text-align:left; }
+.summoning-ledger li {
+  padding:7px 0 7px 20px; border-left:1px solid rgba(201,170,114,.28);
+  font-size:12px; line-height:1.6; color:var(--muted);
+  opacity:0; animation:ledger-enter .62s ease forwards;
+}
+.summoning-ledger li strong { color:#efeade; font-weight:500; }
+.summoning-ledger.is-empty { max-width:640px; margin:14px auto 4px; font-size:12px; line-height:1.6; color:var(--muted); }
+@keyframes ledger-enter { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+
+/* Reduced motion keeps the record but drops the reveal — the content was never the animation. */
+@media (prefers-reduced-motion:reduce) {
+  .summoning-ledger li { opacity:1; animation:none; transform:none; }
+}
