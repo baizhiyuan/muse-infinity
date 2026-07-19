@@ -425,9 +425,33 @@ async function handleDialogue(request, response, url) {
     });
   }
 
-  // Bake-off dispatch. Both arms return the identical shape, so the client never branches on it.
-  // Without this the bake-off would run arm A twice and report the difference as noise.
-  const arm = url?.searchParams.get("arm") === "B" ? "B" : "A";
+  // Arm dispatch. Both arms return the identical shape, so the client never branches on it.
+  // The query param stays so the bake-off remains reproducible — without it a re-run would measure
+  // one arm twice and report the difference as noise.
+  //
+  // B IS THE DEFAULT, decided by measurement rather than by argument. n=32 per arm, strictly
+  // interleaved, one request in flight, question varied each iteration to defeat upstream prompt
+  // caching, 0 discards, arm separation proven at the wire by a counting proxy (A: 1 upstream call
+  // over a 5303-char input; B: 3 concurrent calls of ~1700-1980 chars):
+  //
+  //            P50      P95      max      min
+  //   arm A    6.40s   14.07s   19.00s   4.30s
+  //   arm B    3.30s    7.62s   13.00s   2.41s
+  //
+  // The gap is structural, not noise: A decodes three ~55-word readings serially inside one
+  // completion, B fans out three short generations concurrently so wall clock is the max of three
+  // rather than the sum. Decode throughput is the bottleneck — our own overhead is 3-5ms, ~0.07%
+  // of wall clock, so no server-side work can move this.
+  //
+  // A also runs hot against the request timeout: its P95 of 14.07s sat 0.93s under the old 15s cap
+  // and one call did blow through it (15.38s -> abort -> retry -> 19.00s visible). That is why the
+  // cap is now 45s, and why the top of A's distribution was a live 502 risk in front of an audience.
+  //
+  // Arm choice does NOT cost distinctiveness: AC4 measured both arms and found no detectable
+  // difference (max pairwise Jaccard 0.0870 on A, 0.0926 on B, against a 0.30 bar, zero
+  // cross-contamination either way). The authored lens prompts carry the separation on their own,
+  // so B is faster at no quality cost.
+  const arm = url?.searchParams.get("arm") === "A" ? "A" : "B";
   const fetchPerspectives = arm === "B" ? fetchPerspectivesInParallel : fetchPerspectivesTogether;
 
   try {
