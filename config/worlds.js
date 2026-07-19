@@ -165,9 +165,11 @@ export const WORLDS = {
     // Entry view turned 180 on user request: yaw PI now looks back over the lily water instead
     // of away from it. Artwork stops and companion slots both derive from spawn+yaw, so the
     // exhibition and the masters swing round with the view automatically.
-    // Then nudged right along that facing (yaw PI faces +z, so right is -x): x 3.2 -> 2.0,
-    // which still has ~150 collider floor verts within 1.5m (the bank thins out past x 1.6).
-    profile: { spawn: { x: 2.0, z: -17.58 }, groundY: 1.1, bounds: { minX: -6.36, maxX: 23.3, minZ: -41.25, maxZ: 16.21 }, yaw: Math.PI, cameraFar: 400 },
+    // Nudged right twice on request (yaw PI faces +z, so right is -x): x 3.2 -> 2.0 -> 0.8,
+    // the second step being ~2 world metres at worldScale 1.7. Held back half a step along the
+    // bank (z -17.58 -> -19.0) because the collider probe puts 93 floor verts within 1.5m
+    // there against only 49 straight right — past that the bank drops into the water.
+    profile: { spawn: { x: 0.8, z: -19.0 }, groundY: 1.1, bounds: { minX: -6.36, maxX: 23.3, minZ: -41.25, maxZ: 16.21 }, yaw: Math.PI, cameraFar: 400 },
     enclosed: false,
     recommended: false,
   },
