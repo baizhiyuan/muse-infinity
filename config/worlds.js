@@ -182,7 +182,7 @@ export const WORLDS = {
     // forward on request): the old point sat over a gap, so groundAt fell back to bare groundY.
     // (-3.5,-3.5) still has 50-80 terrace verts underfoot - any further right/forward is the
     // water-void edge (0 verts at (0,-4)).
-    profile: { spawn: { x: -2.2, z: -3.0 }, groundY: 5.6, bounds: { minX: -30.63, maxX: 21.07, minZ: -39.06, maxZ: 33.44 }, yaw: 0, cameraFar: 400 },
+    profile: { spawn: { x: -1.6, z: -2.8 }, groundY: 5.6, bounds: { minX: -30.63, maxX: 21.07, minZ: -39.06, maxZ: 33.44 }, yaw: 0, cameraFar: 400 },
     enclosed: false,
     recommended: false,
   },
