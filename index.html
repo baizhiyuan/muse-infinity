@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#08060a" />
+    <meta name="theme-color" content="#f1eadf" />
     <title>MUSE∞ — The Impossible Museum</title>
     <meta name="description" content="A living museum beyond time, where every conversation transforms the world." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
+    <div id="visual-backdrop" aria-hidden="true"></div>
     <div id="world-environment" aria-hidden="true"></div>
     <canvas id="world" aria-hidden="true"></canvas>
     <div class="grain" aria-hidden="true"></div>
@@ -42,6 +43,14 @@
     <section id="debugPanel" class="debug-panel" hidden aria-label="Development controls"></section>
 
     <noscript>This experience requires JavaScript.</noscript>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "./node_modules/three/build/three.module.js",
+          "three/addons/": "./node_modules/three/examples/jsm/"
+        }
+      }
+    </script>
     <script type="module" src="app.js"></script>
   </body>
 </html>

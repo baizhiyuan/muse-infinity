@@ -20,15 +20,10 @@ export const worldAssets = {
 };
 
 export const characterAssets = {
-  socrates: {
-    modelUrl: "/models/socrates-tripo.glb",
-    representation: "documented_placeholder",
-    scale: 1.2,
-    note: "Replace with the final web-optimized TRIPO GLB. The current Canvas build uses a procedural marble particle bust."
-  }
+  note: "Reviewed GLB paths are configured per participant in config/museumAssets.js. Null paths deliberately render no fake model."
 };
 
 export const worldVariants = [
-  "neutral", "monet", "picasso", "kusama", "van_gogh",
+  "neutral", "monet", "picasso", "hilma", "van_gogh",
   "frida", "socrates", "modern_thinker", "hybrid_final"
 ];

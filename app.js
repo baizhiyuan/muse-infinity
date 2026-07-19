@@ -3,6 +3,10 @@ import { WorldLabsAdapter } from "./services/worldLabs.js";
 import { AudioReactiveSignal } from "./lib/audioAnalysis.js";
 import { PerformanceController } from "./lib/performance.js";
 import { createMemoryWorld, memoryPalette } from "./lib/memoryWorld.js";
+import { museumArtworks, salonParticipants } from "./config/museumAssets.js";
+import { Museum3D } from "./lib/museum3d.js";
+import { loadOpenAccessArtworks } from "./services/museumCollections.js";
+import { VoiceConversation } from "./services/voiceConversation.js";
 
 const canvas = document.querySelector("#world");
 const ctx = canvas.getContext("2d", { alpha: false });
@@ -38,7 +42,7 @@ const performanceController = new PerformanceController({
 });
 
 const STAGES = [
-  "threshold", "museum_void", "world_selection", "world_exploration",
+  "threshold", "museum_void", "world_selection", "companion_selection", "world_exploration",
   "summoning", "roundtable", "decision", "world_transformation", "manifesto"
 ];
 
@@ -46,12 +50,13 @@ const stageMeta = {
   threshold: ["00", "THRESHOLD", "#c9aa72"],
   museum_void: ["01", "BETWEEN WORLDS", "#9e87aa"],
   world_selection: ["02", "BORROWED EYES", "#7caaa9"],
-  world_exploration: ["03", "WORLD OF LIGHT", "#91bab1"],
-  summoning: ["04", "THE SUMMONING", "#b59bc0"],
-  roundtable: ["05", "SALON OUTSIDE TIME", "#c9aa72"],
-  decision: ["06", "THE CONTRADICTION", "#bc7788"],
-  world_transformation: ["07", "WORLD REWRITTEN", "#7faab7"],
-  manifesto: ["08", "YOUR IMPOSSIBLE WORLD", "#d1b677"]
+  companion_selection: ["03", "CHOOSE YOUR COMPANY", "#c999a9"],
+  world_exploration: ["04", "THE LIVING GALLERY", "#91bab1"],
+  summoning: ["05", "THE SUMMONING", "#b59bc0"],
+  roundtable: ["06", "SALON OUTSIDE TIME", "#c9aa72"],
+  decision: ["07", "THE CONTRADICTION", "#bc7788"],
+  world_transformation: ["08", "WORLD REWRITTEN", "#7faab7"],
+  manifesto: ["09", "YOUR IMPOSSIBLE WORLD", "#d1b677"]
 };
 
 const state = {
@@ -68,8 +73,14 @@ const state = {
   worldLoadState: "fallback",
   transformationStart: 0,
   transformationChoice: null,
-  memories: new Set()
+  memories: new Set(),
+  selectedCompanions: new Set(["monet", "morisot"]),
+  galleryArtworks: [...museumArtworks],
+  focusedArtwork: museumArtworks[0]
 };
+
+let museum3D = null;
+let voiceConversation = null;
 
 const effectModes = {
   soften_boundaries:"mist", shift_light:"mist", fracture_geometry:"fracture",
@@ -78,12 +89,7 @@ const effectModes = {
   connect_idea_network:"network", merge_worlds:"hybrid"
 };
 
-const characters = [
-  ["monet", "MONET", "#8bbcb4"], ["picasso", "PICASSO", "#b76c66"],
-  ["kusama", "KUSAMA", "#b58bb7"], ["van_gogh", "VAN GOGH", "#d4ad5e"],
-  ["frida", "FRIDA", "#a04f62"], ["socrates", "SOCRATES", "#e6e1d8"],
-  ["modern", "MODERN THINKER", "#70a4bb"]
-];
+const characters = salonParticipants;
 
 const questions = [
   "What is art supposed to do to a human being?",
@@ -96,7 +102,7 @@ const dialogueSets = {
     { speaker:"socrates", text:"Before deciding what art should do, should we ask whether the viewer wishes to remain unchanged?", effect:"open_philosophical_void" },
     { speaker:"monet", text:"Art can make perception unstable enough that an ordinary instant becomes newly visible.", effect:"soften_boundaries" },
     { speaker:"picasso", text:"Visibility is too gentle. Art should break the agreement that reality has only one face.", effect:"fracture_geometry" },
-    { speaker:"modern", text:"Perhaps its modern purpose is to reclaim attention from systems designed to spend it for us.", effect:"connect_idea_network" }
+    { speaker:"morisot", text:"Perhaps art teaches attention through intimacy: the ordinary room, the held book, the face before it becomes performance.", effect:"connect_idea_network" }
   ],
   "Is suffering necessary for great art?": [
     { speaker:"socrates", text:"If suffering guarantees greatness, why does so much suffering leave no art behind?", effect:"open_philosophical_void" },
@@ -107,8 +113,8 @@ const dialogueSets = {
   "Will AI expand human creativity or make artists unnecessary?": [
     { speaker:"socrates", text:"Are we afraid that machines will stop us creating—or that they will reveal how much of creation was repetition?", effect:"open_philosophical_void" },
     { speaker:"picasso", text:"A tool can fracture form. It cannot decide which fracture is worth carrying into the future.", effect:"fracture_geometry" },
-    { speaker:"kusama", text:"Infinity does not erase the self. It makes the border of the self impossible to defend.", effect:"multiply_particles" },
-    { speaker:"modern", text:"AI multiplies leverage. The scarce act becomes choosing what deserves existence and taking responsibility for it.", effect:"connect_idea_network" }
+    { speaker:"hilma", text:"A diagram can hold what ordinary sight cannot: not a replacement for mystery, but a structure through which intuition can travel.", effect:"multiply_particles" },
+    { speaker:"morisot", text:"A new tool is not a new vision by itself. The human act is still deciding what deserves tenderness and form.", effect:"connect_idea_network" }
   ]
 };
 
@@ -121,6 +127,7 @@ const choices = [
 const escapeHtml = (value) => String(value).replace(/[&<>'"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[c]));
 
 function setStage(stage) {
+  if (state.stage === "world_exploration" && stage !== "world_exploration") teardownMuseumExperience();
   state.stage = stage;
   document.body.dataset.stage = stage;
   const [number, name, color] = stageMeta[stage];
@@ -134,6 +141,7 @@ function setStage(stage) {
   if (stage === "threshold") worldAdapter.setVisible(false);
   updateMeter();
   render();
+  if (stage === "world_exploration") queueMicrotask(initMuseumExperience);
   updateDebugPanel();
 }
 
@@ -164,6 +172,7 @@ function render() {
     threshold: thresholdView,
     museum_void: museumVoidView,
     world_selection: worldSelectionView,
+    companion_selection: companionSelectionView,
     world_exploration: worldExplorationView,
     summoning: summoningView,
     roundtable: roundtableView,
@@ -199,54 +208,76 @@ function museumVoidView() {
 
 function worldSelectionView() {
   const worlds = [
-    ["light","WORLD OF LIGHT","MONET","#79b7b0",false], ["fracture","WORLD OF FRACTURE","PICASSO","#a65a58",true],
-    ["infinity","WORLD OF INFINITY","KUSAMA","#a786b1",true], ["emotion","WORLD OF EMOTION","VAN GOGH","#c69f4e",true],
-    ["identity","WORLD OF IDENTITY","FRIDA KAHLO","#984c5c",true]
+    ["light","WORLD OF LIGHT","MONET","#79b7b0",false,museumArtworks[0]], ["fracture","WORLD OF FRACTURE","PICASSO","#a65a58",true,museumArtworks[2]],
+    ["infinity","WORLD OF THE UNSEEN","HILMA","#a786b1",true,null], ["emotion","WORLD OF EMOTION","VAN GOGH","#c69f4e",true,museumArtworks[1]],
+    ["identity","WORLD OF MEMORY","MORISOT","#c89ba1",true,null]
   ];
   return `<section class="scene">
     <p class="eyebrow">02 / CHOOSE A PERCEPTION</p><h2>Whose eyes do you want to borrow?</h2>
-    <div class="world-grid">${worlds.map(([id,title,artist,color,locked]) => `<button class="world-node ${locked?"locked":""}" style="--node-color:${color}" ${locked?"disabled aria-disabled='true'":`data-world="${id}"`}><small>${artist}${locked?" / PREVIEW":" / ENTER"}</small><b>${title}</b></button>`).join("")}</div>
+    <div class="world-grid">${worlds.map(([id,title,artist,color,locked,artwork]) => `<button class="world-node ${locked?"locked":""}" style="--node-color:${color}; ${artwork ? `--artwork:url('${artwork.image}')` : ""}" ${locked?"disabled aria-disabled='true'":`data-world="${id}"`}><small>${artist}${locked?" / PREVIEW":" / ENTER"}</small><b>${title}</b>${artwork ? `<em>${artwork.title}</em>` : ""}</button>`).join("")}</div>
+  </section>`;
+}
+
+function companionSelectionView() {
+  const selectable = characters.filter(character => character.portrait);
+  return `<section class="scene companion-selection">
+    <div class="companion-intro"><p class="eyebrow">03 / INVITE UP TO THREE MINDS</p><h2>Who will walk the museum with you?</h2><p class="lede">Choose real historical portraits with public-domain sources. In the gallery, each becomes an interpretive AI companion—not a clone or authentic quotation.</p></div>
+    <div class="companion-grid">${selectable.map(character => `<button class="companion-card ${state.selectedCompanions.has(character.id) ? "selected" : ""}" data-companion="${character.id}" style="--portrait:url('${character.portrait}')"><span class="companion-check">${state.selectedCompanions.has(character.id) ? "✓" : "+"}</span><small>INVITE</small><b>${character.fullName}</b><em>AI interpretation · public-domain portrait</em>${character.turnaround ? `<span class="model-readiness">4-VIEW 3D INPUT READY</span>` : ""}</button>`).join("")}</div>
+    <div class="companion-footer"><span id="companionCount">${state.selectedCompanions.size} / 3 SELECTED</span><button class="primary-action" data-action="enter-gallery" ${state.selectedCompanions.size ? "" : "disabled"}>ENTER TOGETHER <span>→</span></button></div>
   </section>`;
 }
 
 function worldExplorationView() {
-  return `<section class="scene monet-layout">
-    <div><p class="eyebrow">03 / CLAUDE MONET</p><h1>World<br>of Light</h1><p class="lede">The world appears only where attention touches it. Explore three fragments of a perception built from water, atmosphere and time.</p></div>
-    <div class="memory-objects">
-      <button class="memory-object" data-memory="reflection"><span>A reflection</span><small>Seeing is not the same as knowing.</small></button>
-      <button class="memory-object" data-memory="time"><span>A changing light</span><small>Dawn and dusk occupy the same water.</small></button>
-      <button class="memory-object" data-memory="question"><span>A suspended question</span><small>What remains when the moment disappears?</small></button>
-      <button class="memory-object" data-action="summon"><span>Summon the impossible salon</span><small>Bring conflicting minds into this world.</small></button>
+  const companions = selectedCompanionRecords();
+  const focused = state.focusedArtwork || state.galleryArtworks[0];
+  return `<section class="scene gallery-scene">
+    <div class="gallery-viewport" id="museum3d">
+      <div class="gallery-title"><p class="eyebrow">04 / THE LIVING GALLERY</p><h2>Walk into the collection.</h2><span>DRAG TO LOOK · W A S D TO WALK · CLICK AN ARTWORK</span></div>
+      <div class="collection-status"><i></i><span id="collectionStatus">OPEN ACCESS COLLECTION · LOCAL CURATION</span></div>
+      <div class="companion-dock" aria-label="Your museum companions">${companions.map(character => `<div class="companion-chip" title="${character.fullName}"><img src="${character.portrait}" alt="${character.fullName}"/><span>${character.name}</span></div>`).join("")}</div>
+      <aside class="artwork-inspector" id="artworkInspector">
+        <button class="inspector-close" data-action="close-inspector" aria-label="Close artwork details">×</button>
+        <img id="focusedArtworkImage" src="${focused.image}" alt="${escapeHtml(focused.title)}" />
+        <p id="focusedArtworkMeta">${escapeHtml(focused.artist)} · ${escapeHtml(focused.date)}</p>
+        <h3 id="focusedArtworkTitle">${escapeHtml(focused.title)}</h3>
+        <a id="focusedArtworkSource" href="${focused.sourceUrl}" target="_blank" rel="noreferrer">VIEW MUSEUM RECORD ↗</a>
+      </aside>
+      <section class="conversation-dock" aria-label="Talk with your museum companions">
+        <div class="conversation-head"><div><small>WALKING CONVERSATION</small><b id="voiceState">LOCAL PREVIEW</b></div><button class="mic-button" data-action="voice-listen" aria-label="Speak to your companions"><span>◉</span> TALK</button></div>
+        <div class="conversation-log" id="conversationLog"><p><b>${companions[0]?.name || "MUSE"}</b> Ask us what this room changes about the way you see.</p></div>
+        <form id="galleryQuestionForm" class="conversation-form"><input id="galleryQuestion" autocomplete="off" placeholder="Ask the group while you walk…" aria-label="Question for your companions"/><button>ASK</button></form>
+      </section>
+      <button class="salon-next" data-action="summon">SUMMON THE FULL SALON <span>→</span></button>
     </div>
   </section>`;
 }
 
 function ringMarkup(coreAction = "open-salon") {
-  return `<div class="salon-ring">${characters.map(([id,name,color],i) => `<div class="character ${state.activeSpeaker===id?"active":""}" style="--angle:${i*(360/7)}deg;--character-color:${color}"><span>${name}</span></div>`).join("")}<div class="salon-core"><button data-action="${coreAction}">${coreAction === "open-salon" ? "OPEN THE SALON" : "ASK THE IMPOSSIBLE"}</button></div></div>`;
+  return `<div class="salon-ring">${characters.map((character,i) => `<div class="character ${state.activeSpeaker===character.id?"active":""} ${character.portrait ? "has-portrait" : ""}" style="--angle:${i*(360/characters.length)}deg;--character-color:${character.color};${character.portrait ? `--portrait:url('${character.portrait}')` : ""}"><span>${character.name}</span></div>`).join("")}<div class="salon-core"><button data-action="${coreAction}">${coreAction === "open-salon" ? "OPEN THE SALON" : "ASK THE IMPOSSIBLE"}</button></div></div>`;
 }
 
 function summoningView() {
-  return `<section class="scene salon"><p class="eyebrow">04 / SEVEN MINDS. ONE EMPTY SEAT.</p><h2>The Salon Outside Time</h2>${ringMarkup("open-salon")}<p class="lede">Historical figures are represented as AI interpretations grounded in documented themes—not authentic quotations or endorsements.</p></section>`;
+  return `<section class="scene salon"><p class="eyebrow">05 / SEVEN MINDS. ONE EMPTY SEAT.</p><h2>The Salon Outside Time</h2>${ringMarkup("open-salon")}<p class="lede">Historical figures are represented as AI interpretations grounded in documented themes—not authentic quotations or endorsements.</p></section>`;
 }
 
 function roundtableView() {
-  return `<section class="scene salon"><p class="eyebrow">05 / ASK ACROSS CENTURIES</p><h2>What should they disagree about?</h2><div class="question-panel"><div class="preset-list">${questions.map((q,i)=>`<button data-question="${escapeHtml(q)}"><small>0${i+1}</small><br>${q}</button>`).join("")}</div></div></section>`;
+  return `<section class="scene salon"><p class="eyebrow">06 / ASK ACROSS CENTURIES</p><h2>What should they disagree about?</h2><div class="question-panel"><div class="preset-list">${questions.map((q,i)=>`<button data-question="${escapeHtml(q)}"><small>0${i+1}</small><br>${q}</button>`).join("")}</div></div></section>`;
 }
 
 function dialogueView() {
   const turns = dialogueSets[state.currentQuestion];
   const turn = turns[state.dialogueIndex];
   state.activeSpeaker = turn.speaker;
-  const speakerLabel = characters.find(([id])=>id===turn.speaker)?.[1] || turn.speaker.replace("_"," ").toUpperCase();
+  const speakerLabel = characters.find(({ id })=>id===turn.speaker)?.name || turn.speaker.replace("_"," ").toUpperCase();
   return `<section class="scene dialogue-scene"><p class="speaker-name">${speakerLabel}</p><blockquote>“${turn.text}”</blockquote><div class="dialogue-progress">${turns.map((_,i)=>`<i class="${i<=state.dialogueIndex?"done":""}"></i>`).join("")}</div><button class="primary-action" data-action="next-dialogue">${state.dialogueIndex === turns.length-1 ? "FACE THE CONTRADICTION" : "CONTINUE"}</button></section>`;
 }
 
 function decisionView() {
-  return `<section class="scene"><p class="eyebrow">06 / SOCRATES ASKS YOU</p><h2>If art can alter reality, what responsibility should it carry?</h2><div class="choice-grid">${choices.map((choice,i)=>`<button class="choice" data-choice="${choice.id}"><small>0${i+1}</small><span>${choice.label}</span></button>`).join("")}</div></section>`;
+  return `<section class="scene"><p class="eyebrow">07 / SOCRATES ASKS YOU</p><h2>If art can alter reality, what responsibility should it carry?</h2><div class="choice-grid">${choices.map((choice,i)=>`<button class="choice" data-choice="${choice.id}"><small>0${i+1}</small><span>${choice.label}</span></button>`).join("")}</div></section>`;
 }
 
 function transformationView() {
-  return `<section class="scene transformation"><p class="eyebrow">07 / YOUR ANSWER HAS ENTERED THE WORLD</p><div class="transformation-mark"></div><h1>The museum is<br>rewriting itself.</h1><p class="lede transformation-copy" id="transformationCopy">Sound falls away. Your chosen idea enters the salon ring.</p></section>`;
+  return `<section class="scene transformation"><p class="eyebrow">08 / YOUR ANSWER HAS ENTERED THE WORLD</p><div class="transformation-mark"></div><h1>The museum is<br>rewriting itself.</h1><p class="lede transformation-copy" id="transformationCopy">Sound falls away. Your chosen idea enters the salon ring.</p></section>`;
 }
 
 function finalWorldData() {
@@ -270,7 +301,18 @@ function bindActions() {
   experience.querySelectorAll("[data-action]").forEach(button => button.addEventListener("click", () => act(button.dataset.action)));
   experience.querySelectorAll("[data-world]").forEach(button => button.addEventListener("click", () => {
     state.selectedPortal = button.dataset.world;
-    setStage("world_exploration");
+    setStage("companion_selection");
+  }));
+  experience.querySelectorAll("[data-companion]").forEach(button => button.addEventListener("click", () => {
+    const id = button.dataset.companion;
+    if (state.selectedCompanions.has(id)) state.selectedCompanions.delete(id);
+    else if (state.selectedCompanions.size < 3) state.selectedCompanions.add(id);
+    button.classList.toggle("selected", state.selectedCompanions.has(id));
+    button.querySelector(".companion-check").textContent = state.selectedCompanions.has(id) ? "✓" : "+";
+    const count = document.querySelector("#companionCount");
+    if (count) count.textContent = `${state.selectedCompanions.size} / 3 SELECTED`;
+    const enter = experience.querySelector("[data-action='enter-gallery']");
+    if (enter) enter.disabled = state.selectedCompanions.size === 0;
   }));
   experience.querySelectorAll("[data-memory]").forEach(button => button.addEventListener("click", () => {
     state.memories.add(button.dataset.memory);
@@ -284,12 +326,22 @@ function bindActions() {
     showDialogue();
   }));
   experience.querySelectorAll("[data-choice]").forEach(button => button.addEventListener("click", () => choose(button.dataset.choice)));
+  const questionForm = experience.querySelector("#galleryQuestionForm");
+  questionForm?.addEventListener("submit", event => {
+    event.preventDefault();
+    const input = experience.querySelector("#galleryQuestion");
+    voiceConversation?.ask(input?.value || "");
+    if (input) input.value = "";
+  });
 }
 
 function act(action) {
   const actions = {
     enter: () => setStage("museum_void"),
     "discover-worlds": () => setStage("world_selection"),
+    "enter-gallery": () => setStage("world_exploration"),
+    "close-inspector": () => document.querySelector("#artworkInspector")?.classList.remove("visible"),
+    "voice-listen": () => voiceConversation?.listen(),
     summon: () => setStage("summoning"),
     "open-salon": () => setStage("roundtable"),
     "next-dialogue": nextDialogue,
@@ -298,6 +350,92 @@ function act(action) {
     "toggle-performance": togglePerformance
   };
   actions[action]?.();
+}
+
+function selectedCompanionRecords() {
+  return characters.filter(character => state.selectedCompanions.has(character.id));
+}
+
+async function initMuseumExperience() {
+  const container = document.querySelector("#museum3d");
+  if (!container || state.stage !== "world_exploration") return;
+  teardownMuseumExperience();
+  museum3D = new Museum3D({
+    container,
+    artworks: state.galleryArtworks,
+    companions: selectedCompanionRecords(),
+    onArtworkFocus: focusArtwork,
+    onReady: () => container.classList.add("ready")
+  });
+  museum3D.mount();
+  voiceConversation = new VoiceConversation({
+    context: () => ({
+      companions: selectedCompanionRecords().map(({ id, fullName }) => ({ id, name: fullName })),
+      artwork: state.focusedArtwork ? { title: state.focusedArtwork.title, artist: state.focusedArtwork.artist, date: state.focusedArtwork.date } : null
+    }),
+    onState: updateVoiceState,
+    onUserText: text => appendConversation("YOU", text),
+    onReply: reply => appendConversation(reply.speaker || "MUSE", reply.text, reply.live)
+  });
+
+  const collectionStatus = document.querySelector("#collectionStatus");
+  try {
+    const liveArtworks = await loadOpenAccessArtworks("Claude Monet");
+    if (state.stage !== "world_exploration" || !liveArtworks.length) return;
+    state.galleryArtworks = liveArtworks;
+    museum3D?.buildGallery(liveArtworks);
+    if (collectionStatus) collectionStatus.textContent = `ART INSTITUTE OF CHICAGO · ${liveArtworks.length} OPEN ACCESS WORKS`;
+  } catch {
+    if (collectionStatus) collectionStatus.textContent = `OPEN ACCESS COLLECTION · ${state.galleryArtworks.length} CACHED WORKS`;
+  }
+}
+
+function focusArtwork(artwork) {
+  state.focusedArtwork = artwork;
+  const inspector = document.querySelector("#artworkInspector");
+  const image = document.querySelector("#focusedArtworkImage");
+  const meta = document.querySelector("#focusedArtworkMeta");
+  const title = document.querySelector("#focusedArtworkTitle");
+  const source = document.querySelector("#focusedArtworkSource");
+  if (image) { image.src = artwork.image; image.alt = `${artwork.title} by ${artwork.artist}`; }
+  if (meta) meta.textContent = `${artwork.artist} · ${artwork.date}`;
+  if (title) title.textContent = artwork.title;
+  if (source) source.href = artwork.sourceUrl;
+  inspector?.classList.add("visible");
+}
+
+function appendConversation(speaker, text, live = false) {
+  const log = document.querySelector("#conversationLog");
+  if (!log) return;
+  const paragraph = document.createElement("p");
+  const label = document.createElement("b");
+  label.textContent = speaker;
+  paragraph.append(label, document.createTextNode(` ${text}`));
+  if (live) paragraph.dataset.live = "true";
+  log.append(paragraph);
+  log.scrollTop = log.scrollHeight;
+}
+
+function updateVoiceState(status) {
+  const label = document.querySelector("#voiceState");
+  const mic = document.querySelector(".mic-button");
+  const labels = {
+    listening: "LISTENING…",
+    thinking: "GPT-5.6 THINKING…",
+    live: "GPT-5.6 LIVE",
+    local: "LOCAL FALLBACK",
+    offline: "CONNECTION PAUSED",
+    unsupported: "TYPE YOUR QUESTION"
+  };
+  if (label) label.textContent = labels[status] || "VOICE TOUR";
+  mic?.classList.toggle("listening", status === "listening");
+}
+
+function teardownMuseumExperience() {
+  museum3D?.dispose();
+  museum3D = null;
+  voiceConversation?.dispose();
+  voiceConversation = null;
 }
 
 function showDialogue() {
@@ -347,7 +485,8 @@ function scheduleTransformation() {
 
 function reset() {
   transformationTimers.forEach(clearTimeout);
-  Object.assign(state, { stage:"threshold", selectedPortal:null, activeSpeaker:null, currentQuestion:null, dialogueIndex:0, philosophy:{perception:0,emotion:0,invention:0}, finalWorld:null, transformationStart:0, transformationChoice:null });
+  teardownMuseumExperience();
+  Object.assign(state, { stage:"threshold", selectedPortal:null, activeSpeaker:null, currentQuestion:null, dialogueIndex:0, philosophy:{perception:0,emotion:0,invention:0}, finalWorld:null, transformationStart:0, transformationChoice:null, selectedCompanions:new Set(["monet","morisot"]), galleryArtworks:[...museumArtworks], focusedArtwork:museumArtworks[0] });
   particleMode = "threshold";
   setStage("threshold");
 }
@@ -365,7 +504,7 @@ function updatePerformanceLabel() {
 function updateDebugPanel() {
   const canDebug = ["localhost", "127.0.0.1"].includes(location.hostname) && !state.demoMode;
   if (!canDebug || debugPanel.hidden) return;
-  debugPanel.innerHTML = `<strong>MUSE∞ VISUAL DEBUG</strong><br>stage: ${state.stage}<br>effect: ${particleMode}<br>speaker: ${state.activeSpeaker || "none"}<br>particles: ${particles.length}<br>quality: ${performanceController.resolved}<br>world: ${state.worldLoadState}<br><button data-debug-effect="mist">MONET</button><button data-debug-effect="fracture">PICASSO</button><button data-debug-effect="infinity">KUSAMA</button><button data-debug-effect="turbulence">VAN GOGH</button><button data-debug-effect="garden">FRIDA</button><button data-debug-effect="void">SOCRATES</button><button data-debug-effect="network">NETWORK</button>`;
+  debugPanel.innerHTML = `<strong>MUSE∞ VISUAL DEBUG</strong><br>stage: ${state.stage}<br>effect: ${particleMode}<br>speaker: ${state.activeSpeaker || "none"}<br>particles: ${particles.length}<br>quality: ${performanceController.resolved}<br>world: ${state.worldLoadState}<br><button data-debug-effect="mist">MONET</button><button data-debug-effect="fracture">PICASSO</button><button data-debug-effect="infinity">HILMA</button><button data-debug-effect="turbulence">VAN GOGH</button><button data-debug-effect="garden">FRIDA</button><button data-debug-effect="void">SOCRATES</button><button data-debug-effect="network">NETWORK</button>`;
   debugPanel.querySelectorAll("[data-debug-effect]").forEach(button => button.addEventListener("click", () => {
     particleMode = button.dataset.debugEffect;
     updateDebugPanel();
@@ -522,13 +661,13 @@ function drawParticle(p,i,mode) {
     }
   }
   const palette = mode==="mist"?[125,190,182]:mode==="fracture"?[196,77,96]:mode==="turbulence"?[109,139,211]:mode==="garden"?[164,73,94]:mode==="network"?[90,160,190]:[205,184,153];
-  const activeColor = characters.find(([id])=>id===state.activeSpeaker)?.[2];
+  const activeColor = characters.find(({ id })=>id===state.activeSpeaker)?.color;
   ctx.fillStyle=(state.activeSpeaker && i%4===0 ? activeColor : p.color) || `rgba(${palette.join(",")},${Math.max(0,alpha*p.life)})`;
   ctx.beginPath(); ctx.arc(x,y,size,0,Math.PI*2); ctx.fill();
 }
 
 function characterAnchor(speaker) {
-  const index = Math.max(0, characters.findIndex(([id])=>id===speaker));
+  const index = Math.max(0, characters.findIndex(({ id })=>id===speaker));
   const angle = index * Math.PI*2/7 - Math.PI/2;
   const radius = Math.min(width,height)*.24;
   return { x:width*.5+Math.cos(angle)*radius, y:height*.51+Math.sin(angle)*radius*.56 };
@@ -648,7 +787,7 @@ addEventListener("keydown",event=>{
   if(event.key.toLowerCase()==="r") reset();
   if(event.key.toLowerCase()==="m") toggleAudio();
   if(event.key.toLowerCase()==="p") togglePerformance();
-  if(event.key.toLowerCase()==="d" && ["localhost","127.0.0.1"].includes(location.hostname) && !state.demoMode) {
+  if(event.altKey && event.key.toLowerCase()==="d" && ["localhost","127.0.0.1"].includes(location.hostname) && !state.demoMode) {
     debugPanel.hidden = !debugPanel.hidden;
     updateDebugPanel();
   }
@@ -657,7 +796,7 @@ addEventListener("keydown",event=>{
 document.querySelectorAll("[data-action='reset']").forEach(button=>button.addEventListener("click",reset));
 document.querySelector("[data-action='toggle-audio']").addEventListener("click",toggleAudio);
 document.querySelector("[data-action='toggle-performance']").addEventListener("click",togglePerformance);
-syncParticlePool(); resize(); updatePerformanceLabel(); render(); requestAnimationFrame(renderWorld);
+syncParticlePool(); resize(); updatePerformanceLabel(); setStage("threshold"); requestAnimationFrame(renderWorld);
 
 if (state.demoMode) {
   document.querySelector("#discovery").textContent = "DEMO MODE / 90 SEC PATH";

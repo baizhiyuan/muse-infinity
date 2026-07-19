@@ -4,7 +4,11 @@
 
 MUSE∞ is a browser-based cultural experience where conversation changes the world. A visitor enters an impossible museum, borrows an artistic perspective, summons a salon across centuries, faces conflicting interpretations, and makes a choice that physically rewrites the surrounding visual system into a personal museum world.
 
-This repository contains the reliable frontend vertical slice plus the Phase 2 point-cloud architecture. It uses a deterministic local particle world and cached dialogue as the lowest fallback, while exposing a typed World Labs embed adapter that can be activated with a public hosted-world URL.
+This repository contains a full-stack engineering spike, a local Three.js walkable gallery, and the Phase 2 point-cloud architecture. It uses a deterministic local particle world, cached public-domain artworks, and curated dialogue as the lowest fallback, while exposing live Art Institute of Chicago Open Access, GPT-5.6 Responses, OpenAI Realtime, World Labs Marble, and Tripo integration points.
+
+## Engineering spike result
+
+The spike proves one production-shaped path through the concept without making the judging journey depend on paid services: the browser enters a real Three.js gallery, loads open-access museum records through a server proxy, asks an artwork-aware GPT-5.6 dialogue route when configured, and falls back honestly when it is not. Separate server-only adapters cover OpenAI Realtime, World Labs Marble generation, and Tripo multiview/rigging tasks. Paid generation routes require `INTEGRATION_ADMIN_TOKEN`; the static server exposes only the runtime files needed by the browser and blocks `.env`, repository metadata, server code, tests, and project documents.
 
 ## Run
 
@@ -22,22 +26,31 @@ For the 75–100 second judging path, open:
 http://localhost:4173/?demo=true
 ```
 
-No account, API key, private data, database, or installation is required.
+No account, API key, private data, or database is required for the fallback path. Set `OPENAI_API_KEY` on the server to enable live GPT-5.6 dialogue.
+
+## Validate
+
+```bash
+npm run check
+npm test
+```
+
+The contract suite validates the World Labs and Tripo request shapes without spending credits, then starts the local HTTP server to verify the public runtime surface, deterministic dialogue fallback, and secret-file boundaries.
 
 ## Working vertical slice
 
 1. Threshold
 2. Museum Between Worlds
 3. Five visible artistic world nodes
-4. Fully explorable World of Light
-5. Seven abstract participant representations
-6. Three deterministic discussion prompts
-7. Four contrasting dialogue turns
-8. One user choice
-9. A visible particle-world transformation
+4. Selection of up to three public-domain historical portrait companions
+5. A real WebGL gallery with drag/WASD navigation and clickable artworks
+6. Live Art Institute of Chicago Open Access/IIIF loading with local fallback
+7. Voice/text questions routed to GPT-5.6 when configured, with honest local fallback
+8. Seven-participant impossible salon and three discussion prompts
+9. One user choice and a visible particle-world transformation
 10. A personalized final world and manifesto
 
-The prototype includes a centralized experience state, constrained world-effect vocabulary, cached fallback dialogue, responsive design, reduced-motion support, and a dependency-free particle renderer.
+The prototype includes a centralized experience state, constrained world-effect vocabulary, cached fallback dialogue, responsive design, reduced-motion support, a deterministic particle renderer, and a Three.js gallery renderer.
 
 ## Demo controls
 
@@ -75,13 +88,18 @@ Particles, character formation, architecture and world blend
 
 The dialogue layer never manipulates individual scene objects. It returns a constrained effect such as `mist`, `fracture`, `infinity`, `void`, `network`, `garden`, or `turbulence`. The frontend owns the deterministic visual implementation.
 
-Phase 2 separates responsibilities into:
+The implementation separates responsibilities into:
 
 - `config/assets.js` — centralized world and character placeholders.
 - `services/worldLabs.js` — supported hosted/embed loading, lifecycle, timeout and local fallback.
 - `lib/audioAnalysis.js` — smoothed low/mid/high/amplitude signal with deterministic simulation.
 - `lib/performance.js` — Auto/High/Low quality selection, DPR and particle budgets.
+- `lib/museum3d.js` — local WebGL architecture, camera movement, artwork frames, raycasting and companion markers.
+- `services/museumCollections.js` — open-access collection loading.
+- `services/voiceConversation.js` — speech recognition, GPT-5.6 dialogue request and spoken reply.
 - `app.js` — preserved narrative state machine plus the constrained world-effect controller.
+- `tests/integration-contracts.mjs` — mocked external API request-contract coverage.
+- `tests/server-contracts.mjs` — local HTTP, fallback and private-file boundary coverage.
 
 ## World Labs integration
 
@@ -105,15 +123,19 @@ Edit [`worlds.json`](worlds.json):
 
 Only put a public hosted-world URL in this file. Never put an API key in browser-readable configuration. If the world is missing, unsupported, blocked, or not loaded within eight seconds, the full journey continues with the local authored particle world. The footer truthfully displays `WORLD LABS READY` or `LOCAL FALLBACK`.
 
-## TRIPO Socrates asset
+World Labs and Tripo generation/task endpoints are intentionally separate from the public judging path. Configure a long random `INTEGRATION_ADMIN_TOKEN` and send it as `Authorization: Bearer <token>` when invoking those routes; without it, the server returns `503` before any paid provider request is attempted.
 
-The current Socrates is an original procedural marble particle memory. The final asset replacement point is centralized in `config/assets.js`:
+## Tripo character assets
+
+Seven labeled multi-view inputs are stored under:
 
 ```text
-/models/socrates-tripo.glb
+/assets/generated/turnarounds/
 ```
 
-Before adding it, optimize the GLB for the web, preserve its license/generation record, confirm scale/orientation, and add it to `THIRD_PARTY_NOTICES.md`. The Canvas prototype does not silently claim to render a GLB it cannot load; the path is explicitly documented as a placeholder for the future WebGL renderer.
+Each sheet is also split into the exact Tripo order `[front, left, back, right]` under `assets/generated/turnarounds/views/<character>/`. The server exposes explicit Tripo OpenAPI v2 single-view, multiview, polling, rigging and animation routes. Set `PUBLIC_APP_URL` only after these files are available on the deployed public HTTPS site, then submit one reviewed character at a time through `POST /api/tripo/characters/:id`. Submission is never automatic because it consumes credits.
+
+After a model succeeds, download the temporary output immediately, optimize it for the web, preserve its generation/source record, and set the reviewed path on that participant in `config/museumAssets.js`. The Three.js gallery loads non-null GLB paths with `GLTFLoader`; it never invents a placeholder person when a file is absent.
 
 ## Fallback levels
 
@@ -137,7 +159,7 @@ The fourth level is complete and always available. World or network failure neve
 
 - Dialogue is labeled as AI interpretation, not authentic quotation.
 - The prototype does not clone voices or imply endorsement.
-- No copyrighted artwork, music, brand asset, or third-party character model is included.
+- Bundled collection images and historical portraits are limited to documented public-domain/open-access sources; no third-party character model is included.
 - Historical and living creators are represented through abstract particles and documented thematic perspectives.
 - The current build uses no personal data.
 
@@ -165,26 +187,26 @@ Before submission, add the `/feedback` session ID for the task where the majorit
 
 ### Submission-readiness disclosure
 
-This repository is being published during the submission period as a work in progress. The current visual journey and deterministic fallback are runnable, but GPT-5.6 live orchestration is not yet implemented. Do not describe the cached dialogue as a live model response in the demo or Devpost submission. Before final submission, the project must add the documented GPT-5.6 path, preserve the fallback, record the core `/feedback` Session ID above, and update this disclosure.
+This repository is being published during the submission period as a work in progress. The current visual journey, 3D gallery, collection API route, GPT-5.6 dialogue endpoint and deterministic fallback are implemented. Live GPT-5.6 still requires a server-side `OPENAI_API_KEY`; when it is absent, the UI reports `LOCAL FALLBACK`. Do not describe fallback text as a live model response. Before final submission, deploy with the key configured, verify one live response, record the core `/feedback` Session ID above, and update this disclosure with the hosted test URL.
 
 ## Next phase
 
-1. Replace cached dialogue with a GPT-5.6 structured-output orchestrator while retaining mock fallback.
-2. Port the same effect/state contracts to React Three Fiber before adding a single chosen splat renderer.
-3. Connect neutral TTS audio to the implemented analyser signal.
-4. Add the final licensed/generated Socrates GLB at the documented path.
+1. Connect the implemented WebRTC session bridge to the gallery microphone for interruptible speech-to-speech.
+2. Route the returned dialogue effect into the Three.js lights, materials and architecture.
+3. Add one licensed/generated historical bust GLB at the documented path.
+4. Optionally replace the authored conservatory with one public World Labs Marble world while preserving the local fallback.
 
 Do not add five complete worlds, seven autonomous agents, accounts, multiplayer, unrestricted WASD movement, or live APIs on the critical judging path.
 
 ## Current limitations
 
-- Visual depth is simulated with layered Canvas particles and incomplete architecture rather than a full WebGL/splat renderer.
-- Dialogue is deterministic mock content, not yet GPT-5.6 output.
+- The gallery is real WebGL geometry, but it is an authored local conservatory rather than a Gaussian-splat or generated World Labs environment.
+- GPT-5.6 dialogue only becomes live when `OPENAI_API_KEY` is configured; otherwise the interface clearly reports its local fallback.
 - Audio-reactive values use a deterministic simulated signal until TTS audio is attached.
 - Four artistic worlds are visible previews only.
 - The final share card is rendered in-app but not yet exported as an image.
-- No actual World Labs hosted URL or TRIPO GLB was present in the project at implementation time; both integrations therefore truthfully run at documented fallback level.
+- No actual World Labs hosted URL or Tripo GLB is present; both integrations therefore truthfully remain documented Phase 3 asset paths.
 
 ## License and attribution
 
-The current prototype is released under the [MIT License](LICENSE), contains original source code, and includes no copied third-party assets. Google Fonts are loaded from their public stylesheet and gracefully fall back to local serif/sans-serif fonts. Add every future model, texture, audio file, open-source package, museum record, and generated asset to `THIRD_PARTY_NOTICES.md` before submission.
+The current prototype is released under the [MIT License](LICENSE) and contains original application source code. Three.js, Google Fonts, generated scene assets, and every bundled public-domain museum/portrait image are recorded in `THIRD_PARTY_NOTICES.md`. Add every future model, texture, audio file, open-source package, museum record, and generated asset there before submission.
