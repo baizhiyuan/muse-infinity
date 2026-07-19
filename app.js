@@ -10,7 +10,7 @@ import { Museum3D } from "./lib/museum3d.js";
 import { loadOpenAccessArtworks } from "./services/museumCollections.js";
 import { artworkChoices, AXIS_CHAMPIONS, DIALOGUE_DISCLAIMER, voiceFor, formatLine } from "./config/companionDialogues.js";
 import { getWorld, PHILOSOPHY_QUERIES } from "./config/worlds.js";
-import { exhibitionScenes } from "./config/exhibitionScenes.js";
+import { exhibitionScenes, finalScene } from "./config/exhibitionScenes.js";
 
 const canvas = document.querySelector("#world");
 const ctx = canvas.getContext("2d", { alpha: false });
@@ -347,11 +347,18 @@ function companionSelectionView() {
   </section>`;
 }
 
+// The scene the visitor is standing in: one of the eight exhibition stops, or — once the
+// roundtable has produced their ending — the dream world their answer built.
+function currentScene() {
+  if (state.finalWorld) return finalScene;
+  return exhibitionScenes[state.exhibitionSceneIndex] || exhibitionScenes[0];
+}
+
 function worldExplorationView() {
   const companions = selectedCompanionRecords();
   const focused = state.focusedArtwork || state.galleryArtworks[0];
   const index = state.exhibitionSceneIndex;
-  const scene = exhibitionScenes[index] || exhibitionScenes[0];
+  const scene = currentScene();
   const total = exhibitionScenes.length;
   const pad = (value) => String(value).padStart(2, "0");
   // A Marble world always loads here (resolveSelectedWorld() resolves the current scene's world),
@@ -385,11 +392,11 @@ function worldExplorationView() {
         <span class="tour-arrow" id="tourArrow" aria-hidden="true">↑</span>
         <div class="tour-copy"><small id="tourStep"></small><b id="tourTitle"></b><span id="tourHint"></span></div>
       </div>
-      <nav class="scene-navigator" aria-label="Exhibition scenes">
+      ${state.finalWorld ? "" : `<nav class="scene-navigator" aria-label="Exhibition scenes">
         <button class="scene-arrow" data-scene-direction="-1" aria-label="Previous scene" title="Previous scene" ${index === 0 ? "disabled" : ""}>←</button>
         <div class="scene-progress"><span id="sceneCounter">${pad(index + 1)} / ${pad(total)}</span><div>${exhibitionScenes.map((item, i) => `<button data-scene-index="${i}" class="${i === index ? "active" : ""}" aria-label="Go to ${escapeHtml(item.title)}"></button>`).join("")}</div></div>
         <button class="scene-arrow" data-scene-direction="1" aria-label="Next scene" title="Next scene" ${index === total - 1 ? "disabled" : ""}>→</button>
-      </nav>
+      </nav>`}
       ${state.finalWorld ? `<button class="salon-next" data-action="reset">BEGIN AGAIN <span>→</span></button>` : `<button class="salon-next" data-action="summon">FORM MY ANSWER <span>→</span></button>`}
     </div>
   </section>`;
@@ -593,7 +600,7 @@ function act(action) {
     // The finale: the manifesto sends the visitor into the last scene of the spine (09 / ANSWER,
     // isFinal) with philosophy scored and state.finalWorld set, so the closing world reads as the
     // one their walk produced.
-    "enter-final-world": () => { state.exhibitionSceneIndex = exhibitionScenes.length - 1; setStage("world_exploration"); },
+    "enter-final-world": () => setStage("world_exploration"), // currentScene() returns the dream world once state.finalWorld is set
     "close-inspector": () => document.querySelector("#artworkInspector")?.classList.remove("visible"),
     "close-art-dialogue": closeArtDialogue,
     summon: () => setStage("summoning"),
@@ -616,7 +623,7 @@ function selectedCompanionRecords() {
 // URL overrides — ?world=<key> and ?render=mesh|splat — for A/B.
 function resolveSelectedWorld() {
   const params = new URLSearchParams(location.search);
-  const scene = exhibitionScenes[state.exhibitionSceneIndex] || exhibitionScenes[0];
+  const scene = currentScene();
   let world = getWorld(params.get("world") || scene.worldKey);
   const render = params.get("render");
   if (render === "mesh" || render === "splat") world = { ...world, render };
@@ -640,7 +647,7 @@ async function initMuseumExperience() {
   const container = document.querySelector("#museum3d");
   if (!container || state.stage !== "world_exploration") return;
   teardownMuseumExperience();
-  const scene = exhibitionScenes[state.exhibitionSceneIndex] || exhibitionScenes[0];
+  const scene = currentScene();
   const activeWorld = resolveSelectedWorld();
   // Scene mode: the walls hang the scene's own curated collection (interpretive studies first),
   // in the codex exhibition order, rather than the philosophy-driven live fetch below.

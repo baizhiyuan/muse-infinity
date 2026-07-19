@@ -149,15 +149,19 @@ export const exhibitionScenes = [
     thumbnail: "assets/scenes/08-kusama-infinite-dots.png",
     artworks: [studies.kusama, grandeJatte, waterLilies]
   },
-  {
-    worldKey: "fantasy-realm-of-shimmering-spheres",
-    id: "personal-dream-world",
-    title: "Your Dream World",
-    chapter: "09 / ANSWER",
-    artist: "A world formed from your answer",
-    prompt: "What will you carry back into the life outside this world?",
-    thumbnail: "assets/scenes/09-final-dream-world.png",
-    isFinal: true,
-    artworks: [studies.future, waterLilies, bedroom]
-  }
 ];
+
+// The dream world is NOT part of the browsable exhibition: it is the world the visitor's own
+// answer builds, so it may only be entered after the closing roundtable (manifesto -> ENTER
+// YOUR WORLD). Keeping it out of `exhibitionScenes` keeps the navigator honest at 8 stops.
+export const finalScene = {
+  worldKey: "fantasy-realm-of-shimmering-spheres",
+  id: "personal-dream-world",
+  title: "Your Dream World",
+  chapter: "09 / ANSWER",
+  artist: "A world formed from your answer",
+  prompt: "What will you carry back into the life outside this world?",
+  thumbnail: "assets/scenes/09-final-dream-world.png",
+  isFinal: true,
+  artworks: [studies.future, waterLilies, bedroom]
+};
