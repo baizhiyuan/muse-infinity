@@ -210,7 +210,8 @@ Built during the 48-hour hack, targeting **T2 World Labs** (flagship — ten Mar
 worlds, walked natively), **T1 Storytelling** (the roundtable that reads your walk),
 and **T3 Tripo** (the masters' 3D bodies). The product was pair-built with AI coding
 agents (Codex + Claude) under human product direction; the engineer-facing spec lives
-in [`LATEST_PRODUCT_SPEC.md`](LATEST_PRODUCT_SPEC.md).
+in [`docs/LATEST_PRODUCT_SPEC.md`](docs/LATEST_PRODUCT_SPEC.md), and the full QA
+trail (15 acceptance-inspection reports) in [`docs/acceptance/`](docs/acceptance/).
 
 Released under the [MIT License](LICENSE).
 

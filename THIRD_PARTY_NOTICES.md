@@ -15,7 +15,7 @@ Web typography requests:
 - DM Sans — Google Fonts / SIL Open Font License
 - Gilda Display — Google Fonts / SIL Open Font License
 
-Original generated concept assets are documented in `ASSET_PIPELINE.md` and stored under `assets/generated/`. They are concept/UI assets for this project, not historical records, licensed museum collection images, or authentic likenesses of named people.
+Original generated concept assets are documented in `docs/ASSET_PIPELINE.md` and stored under `assets/generated/`. They are concept/UI assets for this project, not historical records, licensed museum collection images, or authentic likenesses of named people.
 
 Generated stage backgrounds currently bundled:
 
