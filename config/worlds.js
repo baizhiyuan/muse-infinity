@@ -52,6 +52,7 @@ export const WORLDS = {
     colliderUrl: `${A}/yellow-polka-dot-infinity-room-collider.glb`,
     render: "mesh",
     worldScale: 2, // feedback #11: 3 overshot - figures receded into gold blobs; 2 keeps the room grand while companions stay recognisable
+    companionBoost: true, // feedback #12 defect A: room's emissive gold texture overwhelms PBR companions; self-light them so identity survives
     metric: { scale: 0.969, ty: 0.5906 },
     profile: { spawn: { x: 0.04, z: 0.25 }, groundY: 0.0, bounds: { minX: -4.43, maxX: 8.48, minZ: -2.68, maxZ: 5.45 }, yaw: -Math.PI / 2, cameraFar: 200 },
     enclosed: true,
