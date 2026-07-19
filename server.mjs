@@ -287,14 +287,23 @@ const INTERPRETIVE_FRAMING =
 
 const PERSPECTIVE_RULES =
   `${INTERPRETIVE_FRAMING} Ground every ` +
-  "perspective in the artwork named in the context. Reply in English, under 55 words each. " +
+  "perspective in the artwork named in the context. Answer the visitor's specific question rather " +
+  "than restating the artwork, and vary the opening — a different question must produce a " +
+  "differently-shaped reply, not one stock sentence with the nouns swapped. " +
+  "Reply in English, under 55 words each. " +
   `Choose one visual effect per perspective from ${EFFECT_VOCABULARY.join(", ")}.`;
 
+// The vocabulary lists are quarantined per master because this is a single call that can see all
+// three of them. Without the quarantine a term leaks into a neighbouring voice whenever it also
+// happens to describe the artwork literally, and the three readings stop being tellable apart.
 const PARALLEL_INSTRUCTIONS =
   `You compose a museum wall of parallel readings. Return exactly ${PERSPECTIVE_COUNT} perspectives — ` +
   "one for each master described in the context, in the order given, and no others. The masters do " +
   "not address, answer, or acknowledge one another; each looks at the same artwork alone. Obey each " +
-  "master's own voice instruction, vocabulary, and forbidden words. " + PERSPECTIVE_RULES;
+  "master's own voice instruction, vocabulary, and forbidden words. Each vocabulary belongs to its " +
+  "own master alone: never let a term listed under one master appear in another master's " +
+  "perspective, in any inflected form, even when it would literally describe what is depicted — " +
+  "reach for a different word instead. " + PERSPECTIVE_RULES;
 
 function buildPerspectiveInput({ question, masters, artwork }) {
   return [
