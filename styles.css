@@ -133,6 +133,15 @@ h2 { font-size: clamp(36px, 5vw, 72px); line-height: 1.02; max-width: 900px; }
 .artwork-inspector a { display:inline-block; margin-top:15px; color:#6c5644; font-size:7px; letter-spacing:.16em; text-decoration:none; }
 .inspector-close { position:absolute; z-index:2; top:18px; right:18px; width:28px; height:28px; border:1px solid rgba(255,255,255,.7); border-radius:50%; background:rgba(30,20,15,.38); color:white; cursor:pointer; }
 .conversation-dock { position:absolute; z-index:5; left:42px; bottom:42px; width:min(390px,42vw); color:#342d28; background:rgba(255,252,245,.83); border:1px solid rgba(73,58,45,.16); box-shadow:0 28px 90px rgba(66,45,31,.2); backdrop-filter:blur(20px); }
+/* Clicking a master in the world aims the visitor at this dock. Without the flare the prompt is
+   easy to miss in the corner of a full-bleed 3D scene — which is exactly why nobody used it. */
+.conversation-dock.summoned { animation:dock-summon 1.4s ease-out; }
+@keyframes dock-summon {
+  0%   { box-shadow:0 28px 90px rgba(66,45,31,.2), 0 0 0 0 rgba(180,95,117,.55); }
+  22%  { box-shadow:0 28px 90px rgba(66,45,31,.2), 0 0 0 7px rgba(180,95,117,.28); }
+  100% { box-shadow:0 28px 90px rgba(66,45,31,.2), 0 0 0 0 rgba(180,95,117,0); }
+}
+@media (prefers-reduced-motion:reduce) { .conversation-dock.summoned { animation:none; border-color:rgba(180,95,117,.6); } }
 .conversation-head { display:flex; align-items:center; justify-content:space-between; padding:13px 14px 11px; border-bottom:1px solid rgba(73,58,45,.12); }
 .conversation-head small,.conversation-head b { display:block; }
 .conversation-head small { font-size:7px; letter-spacing:.15em; color:#8a654a; }

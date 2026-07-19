@@ -262,7 +262,7 @@ function worldExplorationView() {
   const focused = state.focusedArtwork || state.galleryArtworks[0];
   return `<section class="scene gallery-scene">
     <div class="gallery-viewport" id="museum3d">
-      <div class="gallery-title"><p class="eyebrow">${state.finalWorld ? "10 / THE WORLD YOU ARGUED FOR" : "04 / THE LIVING GALLERY"}</p><h2>${state.finalWorld ? "This is the world your choices built." : "Walk into the collection."}</h2><span>DRAG TO LOOK · W A S D TO WALK · CLICK AN ARTWORK</span></div>
+      <div class="gallery-title"><p class="eyebrow">${state.finalWorld ? "10 / THE WORLD YOU ARGUED FOR" : "04 / THE LIVING GALLERY"}</p><h2>${state.finalWorld ? "This is the world your choices built." : "Walk into the collection."}</h2><span>DRAG TO LOOK · W A S D TO WALK · CLICK AN ARTWORK OR A MASTER</span></div>
       <div id="worldStatus" style="position:absolute;top:64px;left:24px;z-index:20;font:600 11px/1.4 ui-monospace,monospace;letter-spacing:.08em;color:#9fe3d0;background:rgba(0,0,0,.5);padding:6px 10px;border-radius:6px;pointer-events:none">WORLD · …</div>
       ${state.finalWorld ? `<div class="manifesto-plaque"><small>YOUR IMPOSSIBLE WORLD</small><b>${escapeHtml(state.finalWorld)}</b></div>` : ""}
       <div class="collection-status"><i></i><span id="collectionStatus">OPEN ACCESS COLLECTION · LOCAL CURATION</span></div>
@@ -477,6 +477,7 @@ async function initMuseumExperience() {
     artworks: state.galleryArtworks,
     companions: selectedCompanionRecords(),
     onArtworkFocus: focusArtwork,
+    onCompanionSelect: selectCompanion,
     onReady: () => container.classList.add("ready"),
     onWorldReady: ({ key, render }) => setWorldStatus(`${key} · ${render} · READY`),
     world: activeWorld
@@ -541,6 +542,52 @@ function focusArtwork(artwork) {
   if (title) title.textContent = artwork.title;
   if (source) source.href = artwork.sourceUrl;
   inspector?.classList.add("visible");
+}
+
+/** How long the conversation dock stays highlighted after a master is clicked. */
+const DOCK_SUMMON_MS = 1400;
+let companionSummonTimer = null;
+
+/**
+ * Clicking a master in the 3D gallery. The masters have been standing in the room since the world
+ * loaded and there was no way to address them — the only live entry into dialogue was a small text
+ * box in the corner that visitors simply never noticed. Walking up to a figure and clicking them is
+ * the obvious gesture, so it now opens the ask-prompt, aimed at the work currently in focus.
+ *
+ * The prompt stays truthfully addressed to the group: one question returns three parallel readings,
+ * so clicking Monet does not start a private conversation with Monet — it starts the question that
+ * Monet, van Gogh and Socrates each answer in their own voice.
+ */
+function selectCompanion(companion) {
+  if (!companion) return;
+  const input = document.querySelector("#galleryQuestion");
+  const dock = document.querySelector(".conversation-dock");
+  if (!input || !dock) return;
+
+  const artwork = state.focusedArtwork || state.galleryArtworks[0];
+  const name = companion.fullName || companion.name || "your companion";
+
+  // Pull the eye to the prompt — the affordance existed, it was just invisible. Drop the class and
+  // reflow before re-adding so a second click restarts the animation instead of doing nothing, and
+  // clear it on a timer rather than on `animationend`, which never fires if the CSS goes missing.
+  dock.classList.remove("summoned");
+  void dock.offsetWidth;
+  dock.classList.add("summoned");
+  clearTimeout(companionSummonTimer);
+  companionSummonTimer = setTimeout(() => dock.classList.remove("summoned"), DOCK_SUMMON_MS);
+
+  input.placeholder = artwork ? `Ask about ${artwork.title}…` : "Ask the group while you walk…";
+  // Never clobber something the visitor has already started typing.
+  if (!input.value.trim() && artwork) input.value = `What do you see in ${artwork.title}?`;
+  input.focus();
+  input.select?.();
+
+  appendConversation(
+    "MUSE",
+    artwork
+      ? `${name} turns toward ${artwork.title}. Ask, and all three masters answer in their own voice.`
+      : `${name} turns toward you. Ask, and all three masters answer in their own voice.`
+  );
 }
 
 const AI_INTERPRETATION_DISCLAIMER = "AI INTERPRETATION — NOT AN AUTHENTIC QUOTATION";
