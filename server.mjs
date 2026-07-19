@@ -793,7 +793,15 @@ createServer(async (request, response) => {
     const publicPath = resolvePublicPath(rawPath);
     if (!publicPath) throw new Error("Not found");
     const body = await readFile(publicPath.absolutePath);
-    response.writeHead(200, { "content-type": mime[extname(publicPath.safePath)] || "application/octet-stream" });
+    const ext = extname(publicPath.safePath);
+    // Code files must never be heuristically cached: with no cache headers the browser kept
+    // reusing a stale museum3d.js for the whole session, so shipped fixes (e.g. the splat
+    // orientation flip) never reached the viewer without a hard refresh. Big binary assets
+    // (spz/glb/textures) stay heuristically cacheable - they are large and rarely change.
+    const isCode = [".html", ".js", ".mjs", ".css", ".json"].includes(ext);
+    const headers = { "content-type": mime[ext] || "application/octet-stream" };
+    if (isCode) headers["cache-control"] = "no-cache";
+    response.writeHead(200, headers);
     response.end(body);
   } catch (error) {
     if (request.url?.startsWith("/api/")) {
