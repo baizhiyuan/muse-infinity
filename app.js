@@ -227,7 +227,7 @@ function worldSelectionView() {
   const worlds = listWorlds();
   return `<section class="scene">
     <p class="eyebrow">02 / CHOOSE A WORLD</p><h2>Which world will hold your exhibition?</h2>
-    <div class="world-grid">${worlds.map((w, i) => `<button class="world-node${w.recommended ? " recommended" : ""}" style="--node-color:${WORLD_TINTS[i % WORLD_TINTS.length]}" data-world="${w.key}"><small>${w.enclosed ? "WALKABLE ROOM" : "OPEN WORLD"}${w.recommended ? " · RECOMMENDED" : ""}</small><b>${w.displayName}</b><em>${w.blurb}</em></button>`).join("")}</div>
+    <div class="world-grid">${worlds.map((w, i) => `<button class="world-node${w.recommended ? " recommended" : ""}" style="--node-color:${WORLD_TINTS[i % WORLD_TINTS.length]}${w.thumb ? `;--artwork:url('${w.thumb}')` : ""}" data-world="${w.key}"><small>${w.enclosed ? "WALKABLE ROOM" : "OPEN WORLD"}${w.recommended ? " · RECOMMENDED" : ""}</small><b>${w.displayName}</b><em>${w.blurb}</em></button>`).join("")}</div>
   </section>`;
 }
 
@@ -243,8 +243,14 @@ function companionSelectionView() {
 function worldExplorationView() {
   const companions = selectedCompanionRecords();
   const focused = state.focusedArtwork || state.galleryArtworks[0];
+  // A Marble world always loads here (resolveSelectedWorld() falls back to the default), and the
+  // full-res splat streams for seconds — so cover the viewport with a dark veil until the world
+  // is framed. onWorldReady (or the fallback / 60s safety timeout) dismisses it, avoiding the
+  // old jarring flash of the procedural box gallery before the real world swaps in.
+  const entering = resolveSelectedWorld();
   return `<section class="scene gallery-scene">
     <div class="gallery-viewport" id="museum3d">
+      <div class="world-veil" id="worldVeil"><small>ENTERING WORLD</small><b>${escapeHtml(entering.displayName)}</b><span class="veil-pulse">MATERIALISING SPACE</span></div>
       <div class="gallery-title"><p class="eyebrow">${state.finalWorld ? "10 / THE WORLD YOU ARGUED FOR" : "04 / THE LIVING GALLERY"}</p><h2>${state.finalWorld ? "This is the world your choices built." : "Walk into the collection."}</h2><span>DRAG TO LOOK · W A S D TO WALK · CLICK AN ARTWORK</span></div>
       <div id="worldStatus" style="position:absolute;top:64px;left:24px;z-index:20;font:600 11px/1.4 ui-monospace,monospace;letter-spacing:.08em;color:#9fe3d0;background:rgba(0,0,0,.5);padding:6px 10px;border-radius:6px;pointer-events:none">WORLD · …</div>
       ${state.finalWorld ? `<div class="manifesto-plaque"><small>YOUR IMPOSSIBLE WORLD</small><b>${escapeHtml(state.finalWorld)}</b></div>` : ""}
@@ -385,6 +391,17 @@ function resolveSelectedWorld() {
   return world;
 }
 
+// The world-entry veil (worldExplorationView) is dismissed exactly once per mount: when the
+// Marble world is framed, when it falls back to the box gallery, or by the safety timeout.
+let worldVeilTimer = null;
+function dismissWorldVeil() {
+  if (worldVeilTimer) { clearTimeout(worldVeilTimer); worldVeilTimer = null; }
+  const veil = document.querySelector("#worldVeil");
+  if (!veil || veil.classList.contains("done")) return;
+  veil.classList.add("done"); // CSS fades opacity over ~0.9s, then we remove it from the layout
+  setTimeout(() => { veil.hidden = true; }, 1000);
+}
+
 async function initMuseumExperience() {
   const container = document.querySelector("#museum3d");
   if (!container || state.stage !== "world_exploration") return;
@@ -397,11 +414,14 @@ async function initMuseumExperience() {
     companions: selectedCompanionRecords(),
     onArtworkFocus: focusArtwork,
     onReady: () => container.classList.add("ready"),
-    onWorldReady: ({ key, render }) => setWorldStatus(`${key} · ${render} · READY`),
+    onWorldReady: ({ key, render }) => { setWorldStatus(`${key} · ${render} · READY`); dismissWorldVeil(); },
     world: activeWorld
   });
   museum3D.mount();
   setWorldStatus(`${activeWorld.key} · ${activeWorld.render || (activeWorld.meshUrl ? "mesh" : "splat")} · LOADING…`);
+  // Safety net: a stalled world load (network, decode) must never trap the live demo behind the
+  // veil. onWorldReady clears this timer on a normal (or fallback) reveal.
+  worldVeilTimer = setTimeout(dismissWorldVeil, 60000);
 
   const collectionStatus = document.querySelector("#collectionStatus");
   try {
@@ -542,6 +562,7 @@ function teardownMuseumExperience() {
   museum3D?.dispose();
   museum3D = null;
   closeArtDialogue();
+  if (worldVeilTimer) { clearTimeout(worldVeilTimer); worldVeilTimer = null; }
 }
 
 function showDialogue() {

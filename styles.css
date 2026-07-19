@@ -108,6 +108,16 @@ h2 { font-size: clamp(36px, 5vw, 72px); line-height: 1.02; max-width: 900px; }
 .gallery-scene { position:fixed; inset:0; width:100vw; max-width:none; min-height:100vh; }
 .gallery-viewport { position:absolute; inset:0; overflow:hidden; background:#ece7da; opacity:0; transition:opacity 1s ease; }
 .gallery-viewport.ready { opacity:1; }
+/* World-entry veil: a dark void over the viewport (above the HUD, z-index 20) while the Marble
+   world streams in, so the procedural box gallery never flashes. onWorldReady adds .done to fade
+   it, then it is hidden. Blocks clicks while visible so nothing behind it is interactable. */
+.world-veil { position:absolute; z-index:30; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:15px; padding:24px; text-align:center; color:var(--ivory); background:radial-gradient(circle at 50% 42%, #12161d, #05070a 72%); transition:opacity .9s ease; }
+.world-veil[hidden] { display:none; }
+.world-veil small { font:600 9px/1.4 ui-monospace,monospace; letter-spacing:.32em; text-transform:uppercase; color:var(--gold); }
+.world-veil b { font:400 clamp(30px,4.6vw,58px)/1 "Gilda Display",serif; }
+.world-veil .veil-pulse { font:600 9px/1.4 ui-monospace,monospace; letter-spacing:.3em; text-transform:uppercase; color:rgba(238,233,223,.62); animation:veilPulse 1.8s ease-in-out infinite; }
+.world-veil.done { opacity:0; pointer-events:none; }
+@keyframes veilPulse { 0%,100% { opacity:.3; } 50% { opacity:.9; } }
 .museum-3d-canvas { position:absolute; inset:0; width:100%; height:100%; display:block; cursor:grab; touch-action:none; }
 .museum-3d-canvas:active { cursor:grabbing; }
 .gallery-title { position:absolute; z-index:3; left:42px; top:82px; max-width:430px; color:#342d28; pointer-events:none; text-shadow:0 2px 20px rgba(255,255,255,.86); }

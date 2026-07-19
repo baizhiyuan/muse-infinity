@@ -16,6 +16,9 @@
 // = walk bounds, densest low-Y bin = ground. Never guessed at runtime.
 
 const A = "/assets/worlds";
+// Scene thumbnails for the world-selection cards live OUTSIDE the gitignored /assets/worlds
+// dir. Every filename equals the world's `key` exactly, so `${T}/${key}.jpg` always resolves.
+const T = "/assets/thumbs";
 
 export const WORLDS = {
   // Generated via the Marble API (world_id 705b7748…) — a bright, enclosed, photorealistic
@@ -24,6 +27,7 @@ export const WORLDS = {
   // the splat and the collider (rawMarble). profile decoded post-transform.
   "bright-gallery-hall": {
     key: "bright-gallery-hall",
+    thumb: `${T}/bright-gallery-hall.jpg`,
     name: "Bright Gallery Hall",
     displayName: "Bright Gallery Hall",
     blurb: "A sunlit white-walled museum hall — marble floors, statues and skylights: a true gallery interior.",
@@ -39,6 +43,7 @@ export const WORLDS = {
   },
   "yellow-polka-dot-infinity-room": {
     key: "yellow-polka-dot-infinity-room",
+    thumb: `${T}/yellow-polka-dot-infinity-room.jpg`,
     name: "Yellow Polka Dot Infinity Room",
     displayName: "Infinity Dot Room",
     blurb: "A Kusama-style infinity mirror room — dots and reflections without end, a question of self and infinity.",
@@ -54,6 +59,7 @@ export const WORLDS = {
   },
   "van-gogh-inspired-gallery-interior": {
     key: "van-gogh-inspired-gallery-interior",
+    thumb: `${T}/van-gogh-inspired-gallery-interior.jpg`,
     name: "Van Gogh Inspired Gallery Interior",
     displayName: "Van Gogh Gallery",
     blurb: "A corridor of swirling brushwork and starry-night tones — a studio built for passion and solitude.",
@@ -69,6 +75,7 @@ export const WORLDS = {
   },
   "elegant-floral-palace-interior": {
     key: "elegant-floral-palace-interior",
+    thumb: `${T}/elegant-floral-palace-interior.jpg`,
     name: "Elegant Floral Palace Interior",
     displayName: "Floral Palace",
     blurb: "A blossom-filled palace hall — fleeting beauty turned into a walkable eternity.",
@@ -84,6 +91,7 @@ export const WORLDS = {
   },
   "fantasy-realm-of-shimmering-spheres": {
     key: "fantasy-realm-of-shimmering-spheres",
+    thumb: `${T}/fantasy-realm-of-shimmering-spheres.jpg`,
     name: "Fantasy Realm of Shimmering Spheres",
     displayName: "Shimmering Spheres",
     blurb: "A narrow dream-path of floating luminous spheres — a walk into the starfield of the subconscious.",
@@ -101,6 +109,7 @@ export const WORLDS = {
   // ---- larger / outdoor worlds (splat-only, spawn less reliable — offered but not default) ----
   "grand-conservatory-with-lush-gardens": {
     key: "grand-conservatory-with-lush-gardens",
+    thumb: `${T}/grand-conservatory-with-lush-gardens.jpg`,
     name: "Grand Conservatory with Lush Gardens",
     displayName: "Glass Conservatory",
     blurb: "A vast glass-domed conservatory garden — a hall where light and vines interweave.",
@@ -115,6 +124,7 @@ export const WORLDS = {
   },
   "mexican-courtyard-bedroom-fantasy": {
     key: "mexican-courtyard-bedroom-fantasy",
+    thumb: `${T}/mexican-courtyard-bedroom-fantasy.jpg`,
     name: "Mexican Courtyard Bedroom Fantasy",
     displayName: "Mexican Courtyard",
     blurb: "A Frida-esque courtyard and bedroom — pain and vitality in blazing color.",
@@ -129,6 +139,7 @@ export const WORLDS = {
   },
   "enchanted-water-garden-sanctuary": {
     key: "enchanted-water-garden-sanctuary",
+    thumb: `${T}/enchanted-water-garden-sanctuary.jpg`,
     name: "Enchanted Water Garden Sanctuary",
     displayName: "Water Garden",
     blurb: "A water sanctuary of lilies and reflections — Monet's stillness and flow.",
@@ -143,6 +154,7 @@ export const WORLDS = {
   },
   "dreamlike-coastal-villa-gardens": {
     key: "dreamlike-coastal-villa-gardens",
+    thumb: `${T}/dreamlike-coastal-villa-gardens.jpg`,
     name: "Dreamlike Coastal Villa Gardens",
     displayName: "Coastal Villa",
     blurb: "A dreamlike seaside villa garden — sea breeze, terraces and an endless horizon.",
@@ -157,6 +169,7 @@ export const WORLDS = {
   },
   "sunlit-palace-gardens": {
     key: "sunlit-palace-gardens",
+    thumb: `${T}/sunlit-palace-gardens.jpg`,
     name: "Sunlit Palace Gardens",
     displayName: "Sunlit Gardens",
     blurb: "A palace garden bathed in morning light — an open, grand Baroque courtyard.",
