@@ -1,215 +1,219 @@
-# MUSE∞ — The Impossible Museum
+<div align="center">
 
-> Ask one question. Walk through the dream gallery it becomes.
+<img src="assets/generated/muse-hero-conservatory-v3.png" alt="MUSE∞ — the threshold conservatory where one question becomes a museum" width="100%" />
 
-MUSE∞ is an AI-native dream museum where one personal question becomes a walkable 3D gallery. A visitor asks an existential theme, chooses artist and thinker companions, explores open-access artworks across connected world-regions, and watches each grounded conversation reshape the surrounding environment.
+<h1>MUSE∞ · The Impossible Museum</h1>
 
-This repository contains the Build Week engineering baseline for that product: a local Three.js walkable gallery, open-access artwork loading, GPT-5.6 dialogue with honest fallback, deterministic world transformations, and server-only World Labs Marble and Tripo integration points.
+**Ask one question. Walk through the museum it becomes.**
+A playable, AI-native dream museum: your question curates the collection, AI masters
+walk beside you and argue about every painting in their own voices, and at the end the
+walk you *actually took* is synthesised into a world that exists only for you.
 
-For the latest product direction and engineer-facing build spec, read [LATEST_PRODUCT_SPEC.md](LATEST_PRODUCT_SPEC.md).
+[![Hackathon](https://img.shields.io/badge/Hackathon-SensAI%20·%20WORLDS%20IN%20ACTION%20%5B02%5D%20·%20SIGGRAPH%20LA-7c83ff?style=flat-square)](https://sensai.devpost.com)
+[![Worlds](https://img.shields.io/badge/Worlds-World%20Labs%20Marble%20·%2010%20generated%20spaces-1fd5b6?style=flat-square)](https://www.worldlabs.ai)
+[![Characters](https://img.shields.io/badge/Companions-Tripo%203D%20masters-f59e0b?style=flat-square)](https://www.tripo3d.ai)
+[![Voices](https://img.shields.io/badge/Narration-MiniMax%20speech--2.8%20·%207%20cast%20voices-b594ff?style=flat-square)](https://www.minimax.io)
+[![Dialogue](https://img.shields.io/badge/Dialogue-GPT--5.x%20·%203%20parallel%20perspectives-10a37f?style=flat-square)](#%EF%B8%8F-architecture)
+[![Collection](https://img.shields.io/badge/Collection-Art%20Institute%20of%20Chicago%20Open%20Access-8b5e3c?style=flat-square)](https://www.artic.edu/open-access)
+[![License: MIT](https://img.shields.io/badge/License-MIT-success?style=flat-square)](LICENSE)
+[![Stack](https://img.shields.io/badge/Stack-Vanilla%20JS%20·%20Three.js%20·%20zero%20build-f7df1e?style=flat-square)](#%EF%B8%8F-built-with)
 
-## Current build result
+</div>
 
-The current build proves one production-shaped path through the concept without making the judging journey depend on paid services: the browser enters a real Three.js gallery, loads open-access museum records through a server proxy, asks an artwork-aware GPT-5.6 dialogue route when configured, and falls back honestly when it is not. Separate server-only adapters cover OpenAI Realtime, World Labs Marble generation, and Tripo multiview/rigging tasks. Paid generation routes require `INTEGRATION_ADMIN_TOKEN`; the static server exposes only the runtime files needed by the browser and blocks `.env`, repository metadata, server code, tests, and project documents.
+---
 
-## Run
+## 🎬 The 60-second story
 
-Requirements: Node.js 20 or newer.
+You arrive with one existential question — *"What makes a life meaningful?"* — and the
+museum builds itself around it. You pick three masters (Monet, Van Gogh, Socrates…)
+and step into a **walkable, AI-generated 3D world** where real public-domain paintings
+hang on the walls. Click one and it becomes a **game dialogue**: a master opens in
+character, you answer, another master answers *you* — then all three deliver **live,
+parallel LLM readings of that exact painting**, each in their own cast voice, while the
+room's light literally changes with each reading. When you're done walking, the masters
+hold a **closing roundtable about the walk you actually took** — the paintings you
+stopped at, the questions you asked — and name the world your choices built. Then you
+step into it.
 
-```bash
-npm start
-```
+<div align="center">
+<table><tr>
+<td><img src="assets/thumbs/fantasy-realm-of-shimmering-spheres.jpg" width="220" alt="Shimmering Spheres"/></td>
+<td><img src="assets/thumbs/van-gogh-inspired-gallery-interior.jpg" width="220" alt="Van Gogh studio world"/></td>
+<td><img src="assets/thumbs/enchanted-water-garden-sanctuary.jpg" width="220" alt="Water Garden"/></td>
+<td><img src="assets/thumbs/yellow-polka-dot-infinity-room.jpg" width="220" alt="Infinity Dot Room"/></td>
+</tr></table>
 
-Open `http://localhost:4173`.
+*Four of the ten World Labs Marble worlds generated for MUSE∞ — every one walkable,
+collider-grounded, and rendered at native metric scale.*
+</div>
 
-For the 75–100 second judging path, open:
+---
 
-```text
-http://localhost:4173/?demo=true
-```
+## 🎮 How to play
 
-No account, API key, private data, or database is required for the fallback path. Set `OPENAI_API_KEY` on the server to enable live GPT-5.6 dialogue.
+### Act I — One question opens the gate
 
-## Validate
+Type (or pick) the question you actually carry. The museum reads it and starts
+curating: palette, worlds, collection, companions.
 
-```bash
-npm run check
-npm test
-```
+### Act II — Choose your world and your minds
 
-The contract suite validates the World Labs and Tripo request shapes without spending credits, then starts the local HTTP server to verify the public runtime surface, deterministic dialogue fallback, and secret-file boundaries.
+<div align="center">
+<table><tr>
+<td><img src="assets/thumbs/grand-conservatory-with-lush-gardens.jpg" width="170" alt="Glass Conservatory"/></td>
+<td><img src="assets/thumbs/mexican-courtyard-bedroom-fantasy.jpg" width="170" alt="Mexican Courtyard"/></td>
+<td><img src="assets/thumbs/dreamlike-coastal-villa-gardens.jpg" width="170" alt="Coastal Villa"/></td>
+<td><img src="assets/thumbs/sunlit-palace-gardens.jpg" width="170" alt="Sunlit Gardens"/></td>
+</tr></table>
+</div>
 
-## Working vertical slice
+Six Marble worlds sit on the chooser — and **three more are deliberately hidden**:
+finale-only spaces, reserved as the exclusive destinations your philosophy can unlock.
+Then invite up to three companions from seven masters, each built from documented
+public-domain portraits into a full 3D figure via **Tripo**.
 
-1. Question gate
-2. Museum Between Worlds
-3. Continuous dream-gallery route
-4. Selection of up to three historical companion perspectives
-5. A real WebGL gallery with drag/WASD navigation and clickable artworks
-6. Live Art Institute of Chicago Open Access/IIIF loading with local fallback
-7. Voice/text questions routed to GPT-5.6 when configured, with honest local fallback
-8. Artwork-grounded companion responses and discussion prompts
-9. One user choice and a visible particle-world transformation
-10. A personalized final dream world and manifesto
+<div align="center">
+<img src="assets/generated/interactions/companions-at-the-bedroom-v1.png" alt="Masters standing with the visitor inside a generated world" width="82%" />
 
-The prototype includes a centralized experience state, constrained world-effect vocabulary, cached fallback dialogue, responsive design, reduced-motion support, a deterministic particle renderer, and a Three.js gallery renderer.
+*The masters don't sit in a chat panel. They stand in the world, walk with you,
+and are clickable.*
+</div>
 
-## Demo controls
+### Act III — Walk. Really walk.
 
-| Key | Destination |
+Drag to look, `W A S D` to move. The Marble world streams in behind a dark veil (no
+placeholder flash), your feet snap to the real collider ground, and open-access
+masterpieces from the Art Institute of Chicago hang on genuine display walls,
+each with title, date, source and rights.
+
+### Act IV — Every painting is an encounter
+
+Click a painting and a **visual-novel dialogue** rises: a master opens *in
+character* about this exact work (typewriter text, skippable), you choose your
+answer, and a different master responds to *you*. Seconds later the **live layer**
+lands: three parallel LLM readings of the painting — grounded in its real metadata,
+strictly schema-validated, each labeled `LIVE`, each carrying its own
+AI-interpretation disclaimer — and each reading re-lights the room through a
+constrained effect vocabulary. Click a **master** instead and you can ask them
+anything; all three answer in their own voice, never each other's.
+
+Flip the **SOUND** toggle and it plays like a game: each master speaks with a
+distinct MiniMax-cast voice (Socrates is a deep British gentleman; Van Gogh burns),
+while a per-act public-domain score — Mussorgsky's *Promenade* for the overture,
+Debussy for the gallery, Satie for the salon — **ducks under every spoken line and
+swells back after it**.
+
+<div align="center">
+<img src="assets/generated/museum-salon-romantic-v2.png" alt="The salon where the masters gather" width="82%" />
+</div>
+
+### Act V — The roundtable that read your walk
+
+Your answers feed a philosophy meter (perception / emotion / invention). At the
+end, the masters hold a closing roundtable **about your actual trajectory** — it
+quotes the paintings you stopped at and the questions you asked, refuses to invent
+stops you never made, and names the world your walk built. One click later you are
+standing inside it: a finale-only Marble world the chooser never offered, hung with
+a collection matched to your philosophy.
+
+<div align="center">
+<table><tr>
+<td><img src="assets/generated/transformation-romantic-v2.png" width="340" alt="The transformation"/></td>
+<td><img src="assets/generated/manifesto-garden-v2.png" width="340" alt="Your manifesto"/></td>
+</tr></table>
+
+*The synthesis is yours: same product, different walk, different world.*
+</div>
+
+---
+
+## ✨ What makes it interesting
+
+| | |
 |---|---|
-| `1` | Threshold |
-| `2` | Museum Between Worlds |
-| `3` | World of Light |
-| `4` | Companion conversation |
-| `5` | Discussion questions |
-| `6` | Transformation |
-| `7` | Final world |
-| `R` | Reset |
-| `M` | Sound on/off |
-| `P` | Auto → High → Low performance |
-| `D` | Development visual-effect panel; unavailable in Demo Mode |
+| 🌍 **Real generated worlds, walked natively** | Ten World Labs Marble worlds rendered at **native metric scale** (no bounding-box renormalisation): baked transforms, collider-driven ground snapping and walk bounds, per-world tuning. The official Marble viewer look — but playable. |
+| 🎭 **Three minds, not one chatbot** | One question returns **three parallel readings** in a single strict-JSON LLM call — per-master authored lenses, quarantined vocabularies (Monet may not borrow Van Gogh's words), positional speaker reconciliation. Divergence is engineered, not hoped for. |
+| 🗣️ **A cast, not a TTS** | Seven masters, seven MiniMax voices chosen from the live voice catalogue. Sentence-segmented narration advances only on the previous segment's `ended` event — no mid-line cut-offs — with one-segment prefetch (no dead air) and a watchdog (no stuck queue). |
+| 🎼 **A score that knows when to be quiet** | Per-act public-domain recordings — Mussorgsky's *Promenade* is literally music about walking an exhibition. Game-style ducking drops the score under any speaking master in ~0.6 s. |
+| 🧠 **The ending is earned** | The closing roundtable is grounded in a capped, server-re-clamped digest of your real session — visited artworks, asked questions, what each master already told you. Walk differently, get a different world. |
+| 🧯 **Honest by construction** | No canned prose behind an HTTP 200. Live replies are labeled `LIVE`; fallbacks say so on screen; failures return real errors with reasons. The static server whitelists public files and never serves `.env`, tests, or docs. |
 
-## Architecture
+---
 
-```text
-User interaction
-      ↓
-Deterministic experience state machine
-      ↓
-Dialogue/choice data → Philosophy scoring
-      ↓                       ↓
-Constrained effect name   Final-world resolver
-      ↓                       ↓
-Canvas effect mapper      Personal manifesto
-      ↓
-World environment adapter + memory-particle renderer
-      ↓
-Particles, character formation, architecture and world blend
+## 🏗️ Architecture
+
+```mermaid
+flowchart LR
+    V([Visitor]) -->|drag · WASD · click| B[Three.js gallery<br/>native-metric Marble worlds<br/>+ deterministic state machine]
+    B -->|"POST /api/dialogue"| S[Node server<br/>zero dependencies]
+    B -->|"POST /api/roundtable"| S
+    B -->|"POST /api/tts"| S
+    B -->|"GET /api/artworks"| S
+    S -->|"strict json_schema · 3 perspectives"| L[GPT-5.x via<br/>OpenAI-compatible route]
+    S -->|per-master voice cast| M[MiniMax T2A v2]
+    S -->|open-access IIIF| A[Art Institute<br/>of Chicago]
+    B -->|constrained effect enum| E[config/effects.js<br/>one shared vocabulary]
+    E -->|scene-lighting tween| B
 ```
 
-The dialogue layer never manipulates individual scene objects. It returns a constrained effect such as `mist`, `fracture`, `infinity`, `void`, `network`, `garden`, or `turbulence`. The frontend owns the deterministic visual implementation.
+- **One effect vocabulary** (`config/effects.js`) feeds both the server's JSON-schema
+  enum and the renderer's lighting targets — the two sides cannot drift apart.
+- **Session digest** is capped at construction client-side *and* re-clamped
+  server-side: a trust boundary, not a hope.
+- Worlds are local `.spz`/`.glb` assets generated ahead of time with Marble —
+  the judging path never depends on a paid call succeeding.
 
-The implementation separates responsibilities into:
+## 🛠️ Built with
 
-- `config/assets.js` — centralized world and character placeholders.
-- `services/worldLabs.js` — supported hosted/embed loading, lifecycle, timeout and local fallback.
-- `lib/audioAnalysis.js` — smoothed low/mid/high/amplitude signal with deterministic simulation.
-- `lib/performance.js` — Auto/High/Low quality selection, DPR and particle budgets.
-- `lib/museum3d.js` — local WebGL architecture, camera movement, artwork frames, raycasting and companion markers.
-- `services/museumCollections.js` — open-access collection loading.
-- `services/voiceConversation.js` — speech recognition, GPT-5.6 dialogue request and spoken reply.
-- `app.js` — preserved narrative state machine plus the constrained world-effect controller.
-- `tests/integration-contracts.mjs` — mocked external API request-contract coverage.
-- `tests/server-contracts.mjs` — local HTTP, fallback and private-file boundary coverage.
+| Tool | Role |
+|------|------|
+| [**World Labs Marble**](https://www.worldlabs.ai) | All ten walkable worlds — generated from authored prompts + reference images, rendered natively as splat + collider pairs. |
+| [**Tripo**](https://www.tripo3d.ai) | The masters' 3D bodies — multiview turnaround sheets → reviewed GLB companions that walk with the visitor. |
+| [**MiniMax**](https://www.minimax.io) | `speech-2.8-turbo` per-master narration — seven voices cast from the live catalogue. |
+| **GPT-5.x** (OpenAI-compatible route) | Three-perspective artwork readings and the closing roundtable — strict `json_schema`, bounded retry, honest 502s. |
+| [**Art Institute of Chicago Open Access**](https://www.artic.edu/open-access) | Every painting on the walls, with title/date/source/rights intact. |
+| [**Three.js**](https://threejs.org) | Rendering, raycasting, collider walking. Everything else is **vanilla JS, zero build step**. |
 
-## World Labs integration
+## 🚀 Run it
 
-The project does not invent or depend on an undocumented World Labs SDK. It supports the safest integration currently possible without credentials: an official/public hosted interactive world embedded behind the authored particle and interface layers.
+Requirements: Node.js 20+.
 
-Edit [`worlds.json`](worlds.json):
-
-```json
-{
-  "monet": {
-    "id": "monet",
-    "title": "World of Light",
-    "sourceType": "embed",
-    "worldUrl": "https://YOUR-PUBLIC-HOSTED-WORLD-URL",
-    "assetUrl": "",
-    "thumbnailUrl": "",
-    "fallbackSceneId": "monet-particles"
-  }
-}
+```bash
+npm start          # serves http://localhost:4173
+npm run check      # syntax gate over every runtime file
+npm test           # API contracts + public-surface/secret boundaries
 ```
 
-Only put a public hosted-world URL in this file. Never put an API key in browser-readable configuration. If the world is missing, unsupported, blocked, or not loaded within eight seconds, the full journey continues with the local authored particle world. The footer truthfully displays `WORLD LABS READY` or `LOCAL FALLBACK`.
+| `.env` (all optional) | Unlocks |
+|---|---|
+| `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL` | Live three-perspective dialogue + roundtable (labeled `LIVE`) |
+| `MINIMAX_API_KEY` | Per-master voice narration behind the SOUND toggle |
+| *(nothing)* | The full walk still works — with clearly labeled local fallbacks |
 
-World Labs and Tripo generation/task endpoints are intentionally separate from the public judging path. Configure a long random `INTEGRATION_ADMIN_TOKEN` and send it as `Authorization: Bearer <token>` when invoking those routes; without it, the server returns `503` before any paid provider request is attempted.
+**Controls:** drag to look · `W A S D` walk · click paintings & masters ·
+**SOUND** toggle (top right) for voices + score · `1–7` jump between acts ·
+`R` reset · `P` performance tier.
 
-## Tripo character assets
+## 🛡️ Rights & representation
 
-Labeled multi-view inputs are stored under:
+- Historical figures are **explicitly interpretive AI perspectives** — every
+  attributed line carries a visible disclaimer; no quotation, no endorsement, no
+  voice cloning of real people.
+- Artworks: public-domain / open-access records only, always with source and rights.
+- Music: public-domain recordings. Voices: synthetic casting.
+  Everything bundled is itemised in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+- No accounts, no personal data, no tracking.
 
-```text
-/assets/generated/turnarounds/
-```
+## 🏁 SensAI · WORLDS IN ACTION [02] — SIGGRAPH LA
 
-Each sheet is also split into the exact Tripo order `[front, left, back, right]` under `assets/generated/turnarounds/views/<character>/`. The server exposes explicit Tripo OpenAPI v2 single-view, multiview, polling, rigging and animation routes. Set `PUBLIC_APP_URL` only after these files are available on the deployed public HTTPS site, then submit one reviewed character at a time through `POST /api/tripo/characters/:id`. Submission is never automatic because it consumes credits.
+Built during the 48-hour hack, targeting **T2 World Labs** (flagship — ten Marble
+worlds, walked natively), **T1 Storytelling** (the roundtable that reads your walk),
+and **T3 Tripo** (the masters' 3D bodies). The product was pair-built with AI coding
+agents (Codex + Claude) under human product direction; the engineer-facing spec lives
+in [`LATEST_PRODUCT_SPEC.md`](LATEST_PRODUCT_SPEC.md).
 
-After a model succeeds, download the temporary output immediately, optimize it for the web, preserve its generation/source record, and set the reviewed path on that participant in `config/museumAssets.js`. The Three.js gallery loads non-null GLB paths with `GLTFLoader`; it never invents a placeholder person when a file is absent.
+Released under the [MIT License](LICENSE).
 
-## Fallback levels
-
-1. Public World Labs hosted world behind the full authored particle layer.
-2. Reserved local splat/asset path when a supported WebGL renderer is introduced.
-3. Reserved local GLB environment.
-4. Current local point-cloud architecture, lighting, character memories and cached dialogue.
-
-The fourth level is complete and always available. World or network failure never blocks questions, choices, scoring, transformation, or the manifesto.
-
-## Performance
-
-- `Auto` samples frame rate over several seconds and changes quality only after a cooldown.
-- `High` uses up to 2,200 deterministic Canvas particles and higher DPR.
-- `Medium` uses 1,250 particles.
-- `Low` uses 620 particles and DPR 1.
-- Particle count values are intentionally conservative because this version uses Canvas rather than instanced GPU geometry.
-- Inactive hosted worlds are hidden; replaced frames are removed and timers disposed.
-
-## Safety and representation
-
-- Dialogue is labeled as AI interpretation, not authentic quotation.
-- The prototype does not clone voices or imply endorsement.
-- Bundled collection images and historical portraits are limited to documented public-domain/open-access sources; no third-party character model is included.
-- Historical and living creators are represented through abstract particles and documented thematic perspectives.
-- The current build uses no personal data.
-
-## Codex collaboration
-
-The frontend vertical slice was built with Codex during the hackathon workflow. Codex helped convert the product concept into a deterministic scene architecture; implement the state machine, visual-effect mapper, particle renderer, branching dialogue, philosophy scoring, Demo Mode, responsive interface, and local server; and verify the complete interaction path in a real browser.
-
-Key human product decisions retained in the implementation:
-
-- Conversation must alter the world, not sit in a chat panel.
-- The MVP should feel like one continuous dream gallery, not disconnected random rooms.
-- Up to three active companions are stronger than a crowded cast.
-- Independent autonomous agents are excluded.
-- The critical judging path has no live-service dependency.
-- Historical dialogue is interpretive and never presented as quotation.
-
-Before submission, add the `/feedback` session ID for the task where the majority of core functionality was built.
-
-## OpenAI Build Week judging access
-
-- **Track:** Apps for Your Life
-- **Repository access:** Public under the MIT License so judges can inspect and run the source without an invitation.
-- **Testing path:** Run `npm start`, then open `http://localhost:4173/?demo=true` for the shortest complete path.
-- **Credentials:** None required. The local fallback does not require an API key or private account.
-- **Core Codex Session ID:** `PENDING - replace with the /feedback Session ID before the Devpost submission is finalized.`
-
-### Submission-readiness disclosure
-
-This repository is being published during the submission period as a work in progress. The current visual journey, 3D gallery, collection API route, GPT-5.6 dialogue endpoint and deterministic fallback are implemented. Live GPT-5.6 still requires a server-side `OPENAI_API_KEY`; when it is absent, the UI reports `LOCAL FALLBACK`. Do not describe fallback text as a live model response. Before final submission, deploy with the key configured, verify one live response, record the core `/feedback` Session ID above, and update this disclosure with the hosted test URL.
-
-## Next phase
-
-1. Connect the implemented WebRTC session bridge to the gallery microphone for interruptible speech-to-speech.
-2. Route the returned dialogue effect into the Three.js lights, materials and architecture.
-3. Add one licensed/generated historical bust GLB at the documented path.
-4. Optionally replace the authored conservatory with one public World Labs Marble world while preserving the local fallback.
-
-Do not add five complete worlds, seven autonomous agents, accounts, multiplayer, unrestricted WASD movement, or live APIs on the critical judging path.
-
-## Current limitations
-
-- The gallery is real WebGL geometry, but it is an authored local conservatory rather than a Gaussian-splat or generated World Labs environment.
-- GPT-5.6 dialogue only becomes live when `OPENAI_API_KEY` is configured; otherwise the interface clearly reports its local fallback.
-- Audio-reactive values use a deterministic simulated signal until TTS audio is attached.
-- Four artistic worlds are visible previews only.
-- The final share card is rendered in-app but not yet exported as an image.
-- No actual World Labs hosted URL or Tripo GLB is present; both integrations therefore truthfully remain documented Phase 3 asset paths.
-
-## License and attribution
-
-The current prototype is released under the [MIT License](LICENSE) and contains original application source code. Three.js, Google Fonts, generated scene assets, and every bundled public-domain museum/portrait image are recorded in `THIRD_PARTY_NOTICES.md`. Add every future model, texture, audio file, open-source package, museum record, and generated asset there before submission.
+<div align="center">
+<sub>MUSE∞ — because the best answer to a real question is a world you can walk through.</sub>
+</div>
