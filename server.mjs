@@ -6,6 +6,7 @@ import { generateWorld, getWorldOperation, worldLabsConfigured } from "./service
 import { animateTripoModel, checkTripoRig, generateTripoModel, generateTripoMultiviewModel, getTripoTask, rigTripoModel, tripoConfigured } from "./services/tripoApi.js";
 import { salonParticipants } from "./config/museumAssets.js";
 import { EFFECT_VOCABULARY, describeInvalidEffect } from "./config/effects.js";
+import { TTS_MODEL, voiceForSpeaker } from "./config/masterVoices.js";
 
 // LLM config: prefer LLM_* (OpenAI-compatible proxy, e.g. baizhiyuan); fall back to OPENAI_*.
 const LLM_API_KEY = process.env.LLM_API_KEY || process.env.OPENAI_API_KEY;
@@ -38,6 +39,7 @@ const publicFiles = new Set([
   "worlds.json",
   "services/museumCollections.js",
   "services/voiceConversation.js",
+  "services/voiceNarrator.js",
   "services/worldLabs.js"
 ]);
 const publicDirectories = ["assets/", "config/", "lib/", "node_modules/three/build/", "node_modules/three/examples/jsm/"];
@@ -777,12 +779,66 @@ async function handleIntegrationRoute(request, response, url) {
   return false;
 }
 
+// ---------------------------------------------------------------------------------------------
+// Per-master narration — MiniMax T2A v2 (contract learned + verified in the moss project).
+// ---------------------------------------------------------------------------------------------
+
+const MINIMAX_API_KEY = process.env.MINIMAX_API_KEY;
+const MINIMAX_T2A_ENDPOINT = "https://api.minimax.io/v1/t2a_v2";
+const TTS_TIMEOUT_MS = 20_000;
+// One narrated SEGMENT per request (the client splits longer text on sentence boundaries and
+// queues segments); this cap is a server-side backstop, not the splitting mechanism.
+const TTS_TEXT_LIMIT = 600;
+
+/**
+ * Synthesises one narration segment in the requested master's cast voice and streams the mp3
+ * bytes back. Honest failures only: no key -> 503, upstream trouble -> 502 with the reason.
+ */
+async function handleTts(request, response) {
+  const body = JSON.parse(await readBody(request) || "{}");
+  const text = String(body.text || "").trim().slice(0, TTS_TEXT_LIMIT);
+  if (!text) return sendJson(response, 400, { error: "Text is required." });
+  if (!MINIMAX_API_KEY) {
+    return sendJson(response, 503, { error: "MINIMAX_API_KEY is not configured; narration is unavailable." });
+  }
+  const voice = voiceForSpeaker(body.speakerId);
+  try {
+    const ttsResponse = await fetch(MINIMAX_T2A_ENDPOINT, {
+      method: "POST",
+      headers: { authorization: `Bearer ${MINIMAX_API_KEY}`, "content-type": "application/json" },
+      signal: AbortSignal.timeout(TTS_TIMEOUT_MS),
+      body: JSON.stringify({
+        model: TTS_MODEL,
+        text,
+        stream: false,
+        language_boost: "auto",
+        output_format: "hex",
+        voice_setting: { voice_id: voice.voiceId, speed: voice.speed ?? 1.0, vol: 1.0, pitch: 0 },
+        audio_setting: { sample_rate: 32000, format: "mp3" }
+      })
+    });
+    if (!ttsResponse.ok) throw new Error(`MiniMax returned HTTP ${ttsResponse.status}`);
+    const payload = await ttsResponse.json();
+    const status = payload?.base_resp?.status_code;
+    if (status !== 0) throw new Error(`MiniMax status ${status}: ${payload?.base_resp?.status_msg || "unknown"}`);
+    const audioHex = payload?.data?.audio;
+    if (typeof audioHex !== "string" || !audioHex) throw new Error("MiniMax response carried no audio.");
+    const audio = Buffer.from(audioHex, "hex");
+    response.writeHead(200, { "content-type": "audio/mpeg", "content-length": audio.length, "cache-control": "no-store" });
+    response.end(audio);
+  } catch (error) {
+    console.error(`[tts] voice=${voice.voiceId} textChars=${text.length} failed: ${error.message}`);
+    sendJson(response, 502, { error: "Narration could not be synthesised.", warning: error.message });
+  }
+}
+
 createServer(async (request, response) => {
   try {
     const url = new URL(request.url, `http://${request.headers.host}`);
     const rawPath = url.pathname;
     if (request.method === "POST" && rawPath === "/api/dialogue") return await handleDialogue(request, response, url);
     if (request.method === "POST" && rawPath === "/api/roundtable") return await handleRoundtable(request, response);
+    if (request.method === "POST" && rawPath === "/api/tts") return await handleTts(request, response);
     if (request.method === "GET" && rawPath === "/api/artworks") return await handleArtworks(url, response);
     if (request.method === "POST" && rawPath === "/api/realtime/session") return await handleRealtimeSession(request, response);
     if (rawPath.startsWith("/api/integrations/") || rawPath.startsWith("/api/worlds/") || rawPath.startsWith("/api/tripo/")) {
@@ -813,6 +869,7 @@ createServer(async (request, response) => {
   }
 }).listen(port, host, () => {
   console.log(`MUSE∞ is running at http://${host}:${port}`);
+  console.log(`[tts] ${MINIMAX_API_KEY ? `enabled model=${TTS_MODEL} (per-master MiniMax voices)` : "disabled — no MINIMAX_API_KEY, the voice toggle will report narration unavailable"}`);
 
   // Announce the RESOLVED model, not the default. `.env` shipping LLM_MODEL=gpt-5.6 silently
   // overrode DEFAULT_LLM_MODEL and made the whole perf fix inert — the only symptom was every

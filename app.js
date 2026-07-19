@@ -1,6 +1,7 @@
 import { worldAssets } from "./config/assets.js";
 import { WorldLabsAdapter } from "./services/worldLabs.js";
 import { AudioReactiveSignal } from "./lib/audioAnalysis.js";
+import { VoiceNarrator } from "./services/voiceNarrator.js";
 import { PerformanceController } from "./lib/performance.js";
 import { createMemoryWorld, memoryPalette } from "./lib/memoryWorld.js";
 import { museumArtworks, salonParticipants } from "./config/museumAssets.js";
@@ -23,6 +24,19 @@ loadingMemory.innerHTML = "<div><i></i><span>Reconstructing a memory…</span></
 document.body.append(loadingMemory);
 
 const audioSignal = new AudioReactiveSignal();
+const narrator = new VoiceNarrator();
+
+// Right-side VOICE toggle: per-master MiniMax narration for popup lines, live readings and the
+// closing roundtable. Off by default — enabling is a user gesture, which also satisfies the
+// browser autoplay policy for the Audio elements the narrator plays.
+function toggleVoice() {
+  narrator.setEnabled(!narrator.enabled);
+  const button = document.querySelector("#voiceToggle");
+  if (button) {
+    button.setAttribute("aria-pressed", String(narrator.enabled));
+    button.textContent = narrator.enabled ? "VOICE ◉" : "VOICE ◌";
+  }
+}
 const worldAdapter = new WorldLabsAdapter({
   container: environmentContainer,
   onState: ({ state: loadState }) => {
@@ -148,6 +162,7 @@ const choices = [
 const escapeHtml = (value) => String(value).replace(/[&<>'"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[c]));
 
 function setStage(stage) {
+  narrator.stop(); // a stage change always interrupts narration
   // Leaving (or never entering) the transformation clears its timers so a stale
   // scheduled setStage("manifesto") can't hijack a later screen.
   if (stage !== "world_transformation") { transformationTimers.forEach(clearTimeout); transformationTimers = []; state.transformationStart = 0; }
@@ -578,7 +593,10 @@ function openArtDialogue(artwork) {
   host.hidden = false;
   host.innerHTML = artDialogueMarkup(speaker, { choices: true });
   bindArtDialogue(host, artwork, speaker);
-  typewrite(formatLine(voiceFor(speaker.id).opening, artwork));
+  const opening = formatLine(voiceFor(speaker.id).opening, artwork);
+  typewrite(opening);
+  narrator.stop();
+  narrator.enqueue([{ speakerId: speaker.id, text: opening }]);
   fetchLivePerspectives(`Tell me how you see "${artwork.title}".`, artwork, token);
 }
 
@@ -640,7 +658,10 @@ function onArtChoice(artwork, opener, choiceId) {
   const liveSlot = document.querySelector("#artDialogueLive");
   if (liveSlot) liveSlot.innerHTML = liveContent;
   bindArtDialogue(host, artwork, speaker);
-  typewrite(voiceFor(speaker.id).reactions[choiceId] || "");
+  const reaction = voiceFor(speaker.id).reactions[choiceId] || "";
+  typewrite(reaction);
+  narrator.stop();
+  if (reaction) narrator.enqueue([{ speakerId: speaker.id, text: reaction }]);
 }
 
 function renderLiveNotice(message) {
@@ -662,6 +683,9 @@ function renderPerspectives(reply) {
     museum3D?.setEffect(perspective.effect);
     return `<div class="live-perspective"><b>${escapeHtml(perspective.speaker || "MUSE")}${badge}</b> ${escapeHtml(perspective.text)}<small class="ai-disclaimer">${AI_INTERPRETATION_DISCLAIMER}</small></div>`;
   }).join("");
+  // Speak the readings in order, each in its master's cast voice, after whatever scripted
+  // line is already being narrated (append, don't interrupt).
+  narrator.enqueue((reply.perspectives || []).map(({ speakerId, text }) => ({ speakerId, text })));
 }
 
 /**
@@ -711,6 +735,7 @@ function typewrite(text) {
 
 function closeArtDialogue() {
   if (typewriterTimer) { clearInterval(typewriterTimer); typewriterTimer = null; }
+  narrator.stop();
   dialogueToken += 1; // invalidate any in-flight live fetch
   const host = document.querySelector("#artDialogue");
   if (host) { host.hidden = true; host.innerHTML = ""; }
@@ -744,6 +769,13 @@ async function requestRoundtable() {
     if (!response.ok) throw new Error(payload?.warning || payload?.error || `HTTP ${response.status}`);
     if (!payload || !Array.isArray(payload.threads)) throw new Error("The roundtable response carried no threads.");
     state.roundtable = { status: "ready", data: payload, error: null };
+    // The masters close the visit aloud: each thread in its own cast voice, then the
+    // synthesis in the neutral narrator voice.
+    narrator.stop();
+    narrator.enqueue([
+      ...(payload.threads || []).map(({ speakerId, text }) => ({ speakerId, text })),
+      { speakerId: "muse", text: payload.synthesis || "" }
+    ]);
   } catch (error) {
     // No canned closing behind a failure — the visitor is told the salon did not answer.
     state.roundtable = { status: "error", data: null, error: error.message };
@@ -1102,6 +1134,7 @@ if (["localhost", "127.0.0.1"].includes(location.hostname)) window.__museDebug =
 
 document.querySelectorAll("[data-action='reset']").forEach(button=>button.addEventListener("click",reset));
 document.querySelector("[data-action='toggle-audio']").addEventListener("click",toggleAudio);
+document.querySelector("[data-action='toggle-voice']")?.addEventListener("click",toggleVoice);
 document.querySelector("[data-action='toggle-performance']").addEventListener("click",togglePerformance);
 syncParticlePool(); resize(); updatePerformanceLabel(); const __start = new URLSearchParams(location.search).get("stage"); setStage(STAGES.includes(__start) ? __start : "threshold"); requestAnimationFrame(renderWorld);
 

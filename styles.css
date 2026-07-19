@@ -51,6 +51,7 @@ body[data-stage="threshold"] #world { opacity:.14; mix-blend-mode:multiply; }
 .top-actions { display: flex; gap: 17px; align-items: center; }
 .icon-button, .quiet-button { border: 0; background: transparent; cursor: pointer; padding: 7px; font-size: 9px; letter-spacing: .14em; }
 .icon-button { font-size: 17px; }
+.quiet-button[aria-pressed="true"] { color: var(--stage-accent); }
 
 #experience { position: fixed; z-index: 10; inset: 0; display: grid; place-items: center; padding: 80px 7vw 70px; perspective: 1100px; }
 .scene { width: min(1120px, 100%); min-height: 68vh; display: flex; flex-direction: column; justify-content: center; animation: reveal 1.1s cubic-bezier(.2,.8,.2,1) both; }
