@@ -187,7 +187,10 @@ export const WORLDS = {
     meshUrl: `${A}/sunlit-palace-gardens-mesh.glb`,
     splatUrl: `${A}/sunlit-palace-gardens.spz`,
     colliderUrl: `${A}/sunlit-palace-gardens-collider.glb`,
-    render: "splat",
+    // Feedback #14: the splat renders as a smeared ground layer under a black upper void.
+    // This world has the same-grade texture mesh as shimmering-spheres (which is rock solid),
+    // so render the mesh instead — the fastest of the five open worlds to salvage.
+    render: "mesh",
     metric: { scale: 1.7981, ty: 1.1657 },
     profile: { spawn: { x: -14.79, z: 39.91 }, groundY: 2.8, bounds: { minX: -75.29, maxX: 68.24, minZ: 1.12, maxZ: 82.68 }, yaw: 0, cameraFar: 400 },
     enclosed: false,
