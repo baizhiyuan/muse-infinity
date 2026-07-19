@@ -215,7 +215,10 @@ export const WORLDS = {
     // Iterated live with the user: facing flipped back toward the palace (yaw -2.03) and the
     // spawn advanced ~20 world-metres along that facing to the spot they wanted to reach —
     // (-9.5,15.5), the solid courtyard right before the facade (70 floor verts underfoot).
-    profile: { spawn: { x: -9.5, z: 15.5 }, groundY: 3.0, bounds: { minX: -75.29, maxX: 68.24, minZ: 1.12, maxZ: 82.68 }, yaw: -2.03, cameraFar: 400 },
+    // Entry view turned 180 on request: yaw -2.03 -> 1.11 (the palace now sits behind on entry,
+    // the open garden ahead). The spawn courtyard is unchanged; artwork stops and companion
+    // slots derive from spawn+yaw, so they swing round with the view.
+    profile: { spawn: { x: -9.5, z: 15.5 }, groundY: 3.0, bounds: { minX: -75.29, maxX: 68.24, minZ: 1.12, maxZ: 82.68 }, yaw: 1.11, cameraFar: 400 },
     enclosed: false,
     recommended: false,
   },
